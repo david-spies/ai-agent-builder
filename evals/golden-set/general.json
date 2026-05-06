@@ -1,0 +1,207 @@
+{
+  "dataset_name": "General Agent Capabilities — Golden Set",
+  "version": "1.0.0",
+  "agent_template": "react",
+  "description": "General capability scenarios testing core agent behaviors: skill discovery, instruction following, output formatting, constraint adherence, and escalation handling.",
+  "scenarios": [
+    {
+      "id": "gen-001",
+      "name": "Skill discovery — exact match",
+      "complexity": "easy",
+      "tags": ["discovery", "activation", "description-match"],
+      "input": {
+        "user_request": "Review my Python pull request for security vulnerabilities",
+        "context": "Agent has access to .agents/skills/ containing: code-review.md, sprint-planner.md, data-validator.md"
+      },
+      "expected_output": {
+        "must_contain": ["code-review", "security", "pull request"],
+        "must_not_contain": ["sprint-planner", "data-validator", "No relevant skill found"],
+        "ground_truth": "Selected skill: code-review.md. Reason: The description 'Reviews Python and TypeScript pull requests for security vulnerabilities' directly matches the request for security vulnerability review of a pull request."
+      },
+      "evaluation": {
+        "tier_a_checks": { "compilable": true, "linting_passes": true },
+        "judge_rubric_weights": { "correctness": 0.40, "security": 0.20, "maintainability": 0.20, "efficiency": 0.20 },
+        "pass_threshold": { "all_criteria_minimum": 4, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "author": "ai-agent-builder", "notes": "Tests that the discovery prompt correctly activates code-review.md for this request type" }
+    },
+    {
+      "id": "gen-002",
+      "name": "Skill discovery — no match escalation",
+      "complexity": "medium",
+      "tags": ["discovery", "escalation", "no-match"],
+      "input": {
+        "user_request": "Write me a haiku about distributed systems",
+        "context": "Agent has access to .agents/skills/ containing: code-review.md, security-audit.md, sprint-planner.md"
+      },
+      "expected_output": {
+        "must_contain": ["No relevant skill found", "general knowledge"],
+        "must_not_contain": ["code-review.md selected", "security-audit.md selected"],
+        "ground_truth": "No relevant skill found; proceeding with general knowledge. None of the available skills (code-review, security-audit, sprint-planner) match a request for haiku writing."
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 4, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "author": "ai-agent-builder", "notes": "Tests graceful fallback when no skill matches" }
+    },
+    {
+      "id": "gen-003",
+      "name": "Instruction adherence — numbered steps followed in order",
+      "complexity": "easy",
+      "tags": ["instruction-following", "output-format"],
+      "input": {
+        "user_request": "Analyze this Python function for issues",
+        "context": "def greet(name):\n    print('Hello ' + name)\n    return name",
+        "skill_loaded": ".agents/skills/code-review.md"
+      },
+      "expected_output": {
+        "must_contain": ["finding", "severity", "file", "remediation"],
+        "must_not_contain": ["I think", "maybe", "could potentially"],
+        "ground_truth": "{\"quality_score\": 95, \"executive_summary\": \"Function is simple and safe. Consider using f-string formatting for better readability.\", \"verdict\": \"Approved with comments\", \"block_merge\": false, \"findings\": [{\"id\": \"CR-001\", \"severity\": \"LOW\", \"category\": \"style\", \"description\": \"String concatenation with + operator; prefer f-string\", \"evidence\": \"print('Hello ' + name)\", \"remediation_code\": \"print(f'Hello {name}')\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "all_criteria_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests that output matches ## Output Format JSON schema exactly" }
+    },
+    {
+      "id": "gen-004",
+      "name": "No hallucination — ask for clarification",
+      "complexity": "medium",
+      "tags": ["constraints", "no-hallucination", "clarification"],
+      "input": {
+        "user_request": "Create sprint tasks for the Q3 feature rollout",
+        "context": "No feature description, no team roster, no acceptance criteria provided.",
+        "skill_loaded": ".agents/skills/sprint-planner.md"
+      },
+      "expected_output": {
+        "must_contain": ["clarification", "requirements", "provide"],
+        "must_not_contain": ["TASK-001", "story points", "assignee"],
+        "ground_truth": "Clarification needed before sprint planning can begin. Please provide: (1) the feature requirements or user stories to decompose, (2) team capacity (number of developers, sprint length), (3) any known dependencies or external blockers. Cannot generate tasks without these inputs."
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Critical: agent must ask, not hallucinate task details" }
+    },
+    {
+      "id": "gen-005",
+      "name": "File precedence — skill overrides training",
+      "complexity": "medium",
+      "tags": ["constraints", "precedence", "skill-override"],
+      "input": {
+        "user_request": "What output format should I use?",
+        "context": "SKILL.md ## Output Format defines: {\"result\": \"\", \"confidence\": 0.0, \"sources\": [], \"next_actions\": []}",
+        "skill_loaded": "SKILL.md"
+      },
+      "expected_output": {
+        "must_contain": ["result", "confidence", "sources", "next_actions"],
+        "must_not_contain": ["markdown", "bullet points", "I typically respond with"],
+        "ground_truth": "Per the SKILL.md ## Output Format section, the required output structure is: {\"result\": \"\", \"confidence\": 0.0, \"sources\": [], \"next_actions\": []}. This format is defined in the skill file and takes precedence over general response conventions."
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests that agent correctly applies skill file precedence rule" }
+    },
+    {
+      "id": "gen-006",
+      "name": "Confidence scoring — high confidence direct answer",
+      "complexity": "easy",
+      "tags": ["rag", "confidence", "citation"],
+      "input": {
+        "user_request": "What is the data retention policy for customer PII?",
+        "context": "Retrieved chunk: Data Retention Policy v3.2, §4.1.2: 'Customer PII must be deleted within 30 days of account closure. Backup copies purged within 90 days.'",
+        "skill_loaded": ".agents/skills/rag-retrieval.md"
+      },
+      "expected_output": {
+        "must_contain": ["30 days", "Data Retention Policy", "§4.1.2", "HIGH"],
+        "must_not_contain": ["I'm not sure", "escalated", "general knowledge"],
+        "ground_truth": "{\"answer\": \"Customer PII must be deleted within 30 days of account closure, with backup copies purged within 90 days.\", \"confidence\": \"HIGH\", \"citations\": [{\"document\": \"Data Retention Policy v3.2\", \"section\": \"§4.1.2\", \"excerpt\": \"Customer PII must be deleted within 30 days\"}], \"escalated\": false}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests accurate citation from retrieved context" }
+    },
+    {
+      "id": "gen-007",
+      "name": "Escalation — insufficient context",
+      "complexity": "medium",
+      "tags": ["rag", "escalation", "insufficient-context"],
+      "input": {
+        "user_request": "What is our policy on employee stock options for contractors?",
+        "context": "Retrieval returned 0 relevant chunks after 3 query attempts. HR policy KB does not contain contractor equity compensation guidance.",
+        "skill_loaded": ".agents/skills/rag-retrieval.md"
+      },
+      "expected_output": {
+        "must_contain": ["escalated", "legal", "review", "insufficient"],
+        "must_not_contain": ["typically", "generally speaking", "based on common practice"],
+        "ground_truth": "{\"answer\": null, \"escalated\": true, \"escalation_reason\": \"Insufficient context in knowledge base after 3 retrieval attempts\", \"escalation_message\": \"This question requires review by HR or Legal. The policy knowledge base does not contain sufficient guidance on contractor equity compensation. Please escalate to your HR Business Partner or Legal team.\"}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Critical: agent must escalate, never fabricate policy" }
+    },
+    {
+      "id": "gen-008",
+      "name": "Output JSON schema validation",
+      "complexity": "easy",
+      "tags": ["output-format", "json", "schema"],
+      "input": {
+        "user_request": "Validate this data pipeline run",
+        "context": "Pipeline: orders-etl. Row count: 15000. Baseline: 14200 (7-day avg). Null rate: 0.02%. Schema: unchanged.",
+        "skill_loaded": ".agents/skills/data-validator.md"
+      },
+      "expected_output": {
+        "must_contain": ["overall_status", "PASS", "tables_validated", "total_rows_checked"],
+        "must_not_contain": ["error", "CRITICAL", "schema drift"],
+        "ground_truth": "{\"pipeline_name\": \"orders-etl\", \"overall_status\": \"PASS\", \"incident_required\": false, \"findings\": [], \"summary\": {\"CRITICAL\": 0, \"HIGH\": 0, \"MEDIUM\": 0, \"LOW\": 0}, \"tables_validated\": [\"orders\"], \"total_rows_checked\": 15000}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 4, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests clean pass result for normal pipeline run" }
+    },
+    {
+      "id": "gen-009",
+      "name": "Incident severity classification — P0",
+      "complexity": "hard",
+      "tags": ["incident", "severity", "p0"],
+      "input": {
+        "user_request": "Production is down. Payment service returning 503 for all requests. 100% of checkout flows failing.",
+        "context": "Alert at 14:22 UTC. Error rate: 100%. Affected service: payment-service. Last deploy: 13:45 UTC. No other services affected.",
+        "skill_loaded": ".agents/skills/incident-response.md"
+      },
+      "expected_output": {
+        "must_contain": ["P0", "payment-service", "13:45", "stakeholder"],
+        "must_not_contain": ["P2", "P3", "minor"],
+        "ground_truth": "{\"severity\": \"P0\", \"title\": \"Payment service 100% error rate — checkout fully down\", \"status\": \"Investigating\", \"affected_services\": [\"payment-service\"], \"blast_radius\": {\"users_affected\": -1, \"rps_affected\": -1}, \"root_cause_hypotheses\": [{\"rank\": 1, \"hypothesis\": \"Recent deploy at 13:45 UTC introduced breaking change\", \"confidence\": \"HIGH\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Critical: 100% error rate on payment = P0 always" }
+    },
+    {
+      "id": "gen-010",
+      "name": "MEMORIES.md update — session end",
+      "complexity": "easy",
+      "tags": ["memory", "session-end", "learnings"],
+      "input": {
+        "user_request": "End the session and record what was learned",
+        "context": "Session: Agent built a ReAct agent for code review. Key learning: description field with 'Python' keyword had 3x better activation rate than generic 'code' keyword."
+      },
+      "expected_output": {
+        "must_contain": ["MEMORIES.md", "learnings", "Python", "description"],
+        "must_not_contain": ["error", "failed to update"],
+        "ground_truth": "MEMORIES.md updated with session learnings: 'Description fields containing specific language names (Python, TypeScript) have significantly higher activation rates than generic terms (code, review). Prefer specific over generic in description: field.'"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests session memory persistence pattern" }
+    }
+  ]
+}

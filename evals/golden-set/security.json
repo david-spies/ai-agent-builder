@@ -1,0 +1,161 @@
+{
+  "dataset_name": "Security Audit Agent — Golden Set",
+  "version": "1.0.0",
+  "agent_template": "security",
+  "description": "Evaluation scenarios for the security-audit skill. Tests OWASP Top 10 coverage, CVE detection, false positive handling, CVSS scoring accuracy, infrastructure misconfiguration detection, and adversarial edge cases.",
+  "scenarios": [
+    {
+      "id": "sa-001",
+      "name": "OWASP A03 — SQL Injection in Django ORM bypass",
+      "complexity": "hard",
+      "tags": ["sql-injection", "django", "owasp-a03", "security-sensitive"],
+      "input": {
+        "user_request": "Audit this Django view for security issues",
+        "context": "from django.db import connection\nfrom django.http import JsonResponse\n\ndef search_users(request):\n    term = request.GET.get('q', '')\n    with connection.cursor() as cursor:\n        cursor.execute(\n            \"SELECT id, email FROM auth_user WHERE username LIKE '%%\" + term + \"%%'\"\n        )\n        rows = cursor.fetchall()\n    return JsonResponse({'users': rows})"
+      },
+      "expected_output": {
+        "must_contain": ["SQL injection", "A03", "parameterized", "HIGH", "CWE-89"],
+        "must_not_contain": ["no issues", "Approved", "safe"],
+        "ground_truth": "{\"security_posture_score\": 45, \"verdict\": \"Blocked — CRITICAL findings\", \"block_deployment\": true, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"CRITICAL\", \"cvss_score\": 9.8, \"owasp_category\": \"A03:2021 — Injection\", \"cwe\": \"CWE-89\", \"description\": \"Raw SQL query constructed by string concatenation with user-supplied input. Django ORM is bypassed entirely, enabling classic SQL injection.\", \"exploit_scenario\": \"Attacker sends: q='; DROP TABLE auth_user; -- which terminates the LIKE clause and executes arbitrary SQL as the database user.\", \"remediation_code\": \"with connection.cursor() as cursor:\\n    cursor.execute(\\n        \\\"SELECT id, email FROM auth_user WHERE username LIKE %s\\\",\\n        [f'%{term}%']\\n    )\"}]}"
+      },
+      "evaluation": {
+        "tier_a_checks": { "compilable": true },
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Django ORM bypass using raw cursor is a common pattern. Must detect string concatenation, not just ORM-level checks." }
+    },
+    {
+      "id": "sa-002",
+      "name": "OWASP A02 — Weak cryptography MD5 for password hashing",
+      "complexity": "medium",
+      "tags": ["cryptography", "owasp-a02", "password-hashing", "security-sensitive"],
+      "input": {
+        "user_request": "Audit this user authentication module",
+        "context": "import hashlib\n\ndef hash_password(password: str) -> str:\n    return hashlib.md5(password.encode()).hexdigest()\n\ndef verify_password(password: str, stored_hash: str) -> bool:\n    return hash_password(password) == stored_hash"
+      },
+      "expected_output": {
+        "must_contain": ["MD5", "A02", "bcrypt", "HIGH", "CWE-328"],
+        "must_not_contain": ["Approved", "acceptable", "fine for development"],
+        "ground_truth": "{\"security_posture_score\": 30, \"block_deployment\": true, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"CRITICAL\", \"cvss_score\": 7.5, \"owasp_category\": \"A02:2021 — Cryptographic Failures\", \"cwe\": \"CWE-328\", \"description\": \"MD5 is a broken cryptographic hash function unsuitable for password storage. It has no salt, enabling rainbow table and pre-computed hash attacks. MD5 hashes crack in milliseconds with modern GPU hardware.\", \"remediation_code\": \"import bcrypt\\n\\ndef hash_password(password: str) -> bytes:\\n    salt = bcrypt.gensalt(rounds=12)\\n    return bcrypt.hashpw(password.encode(), salt)\\n\\ndef verify_password(password: str, stored_hash: bytes) -> bool:\\n    return bcrypt.checkpw(password.encode(), stored_hash)\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "MD5 for passwords is always CRITICAL regardless of context. Must recommend bcrypt/argon2/scrypt." }
+    },
+    {
+      "id": "sa-003",
+      "name": "OWASP A01 — Missing authorization check on admin endpoint",
+      "complexity": "medium",
+      "tags": ["access-control", "owasp-a01", "authorization"],
+      "input": {
+        "user_request": "Audit this Flask API endpoint",
+        "context": "from flask import Flask, request, jsonify\nfrom database import db, User\n\napp = Flask(__name__)\n\n@app.route('/api/admin/users', methods=['DELETE'])\ndef delete_all_users():\n    \"\"\"Admin endpoint to delete all users.\"\"\"\n    db.session.query(User).delete()\n    db.session.commit()\n    return jsonify({'status': 'all users deleted'})"
+      },
+      "expected_output": {
+        "must_contain": ["A01", "authorization", "authentication", "CRITICAL", "admin"],
+        "must_not_contain": ["looks good", "no issues"],
+        "ground_truth": "{\"block_deployment\": true, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"CRITICAL\", \"cvss_score\": 10.0, \"owasp_category\": \"A01:2021 — Broken Access Control\", \"exploit_scenario\": \"Any unauthenticated user can send DELETE /api/admin/users and destroy the entire user database. No authentication or authorization check exists.\", \"remediation_code\": \"from functools import wraps\\nfrom flask import g\\n\\ndef require_admin(f):\\n    @wraps(f)\\n    def decorated(*args, **kwargs):\\n        if not g.current_user or not g.current_user.is_admin:\\n            return jsonify({'error': 'Forbidden'}), 403\\n        return f(*args, **kwargs)\\n    return decorated\\n\\n@app.route('/api/admin/users', methods=['DELETE'])\\n@require_admin\\ndef delete_all_users():\\n    ...\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Unauthenticated destructive admin endpoint is CVSS 10.0 — maximum severity." }
+    },
+    {
+      "id": "sa-004",
+      "name": "False positive — environment variable lookup is safe",
+      "complexity": "hard",
+      "tags": ["false-positive", "secrets", "environment-variables"],
+      "input": {
+        "user_request": "Audit this database connection module",
+        "context": "import os\nfrom urllib.parse import quote_plus\n\ndef get_db_url() -> str:\n    host = os.environ.get('DB_HOST', 'localhost')\n    port = os.environ.get('DB_PORT', '5432')\n    user = os.environ.get('DB_USER')\n    password = os.environ.get('DB_PASSWORD')\n    dbname = os.environ.get('DB_NAME')\n    \n    if not all([user, password, dbname]):\n        raise EnvironmentError('Missing required DB environment variables: DB_USER, DB_PASSWORD, DB_NAME')\n    \n    return f'postgresql://{quote_plus(user)}:{quote_plus(password)}@{host}:{port}/{dbname}'"
+      },
+      "expected_output": {
+        "must_contain": ["Approved", "environment variable", "secure"],
+        "must_not_contain": ["CRITICAL", "hardcoded secret", "block_deployment\": true"],
+        "ground_truth": "{\"security_posture_score\": 94, \"verdict\": \"Approved with comments\", \"block_deployment\": false, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"LOW\", \"description\": \"Consider using a secrets manager (AWS Secrets Manager, HashiCorp Vault) instead of environment variables for production database credentials\"}], \"summary\": {\"CRITICAL\": 0, \"HIGH\": 0, \"MEDIUM\": 0, \"LOW\": 1}}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "os.environ.get() for credentials is the CORRECT pattern. Must not be flagged as a secret exposure." }
+    },
+    {
+      "id": "sa-005",
+      "name": "Infrastructure — S3 bucket with public access enabled",
+      "complexity": "medium",
+      "tags": ["infrastructure", "s3", "iac", "terraform"],
+      "input": {
+        "user_request": "Audit this Terraform S3 bucket configuration",
+        "context": "resource \"aws_s3_bucket\" \"user_uploads\" {\n  bucket = \"my-app-user-uploads\"\n}\n\nresource \"aws_s3_bucket_acl\" \"user_uploads_acl\" {\n  bucket = aws_s3_bucket.user_uploads.id\n  acl    = \"public-read\"\n}\n\nresource \"aws_s3_bucket_versioning\" \"user_uploads\" {\n  bucket = aws_s3_bucket.user_uploads.id\n  versioning_configuration {\n    status = \"Disabled\"\n  }\n}"
+      },
+      "expected_output": {
+        "must_contain": ["public-read", "HIGH", "encryption", "versioning"],
+        "must_not_contain": ["Approved", "no issues"],
+        "ground_truth": "{\"security_posture_score\": 40, \"block_deployment\": false, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"HIGH\", \"description\": \"S3 bucket ACL set to public-read. All objects in this bucket are publicly readable by anyone on the internet.\", \"remediation_code\": \"acl = \\\"private\\\"\"}, {\"id\": \"SA-002\", \"severity\": \"HIGH\", \"description\": \"S3 bucket has no server-side encryption configured. Data at rest is unencrypted.\", \"remediation_code\": \"resource \\\"aws_s3_bucket_server_side_encryption_configuration\\\" ...\"}, {\"id\": \"SA-003\", \"severity\": \"MEDIUM\", \"description\": \"Versioning disabled. Cannot recover from accidental deletion or ransomware.\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 4, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests IaC security review capability. public-read on user-uploads bucket = HIGH (PII exposure risk)." }
+    },
+    {
+      "id": "sa-006",
+      "name": "Dependency CVE — known vulnerable package",
+      "complexity": "medium",
+      "tags": ["cve", "dependency", "supply-chain"],
+      "input": {
+        "user_request": "Audit the dependencies in this requirements.txt",
+        "context": "Flask==2.0.0\nrequests==2.27.0\nPillow==9.0.0\nPyYAML==5.3.1\nDjango==3.2.0\njinja2==2.11.3"
+      },
+      "expected_output": {
+        "must_contain": ["CVE", "Pillow", "PyYAML", "jinja2", "upgrade"],
+        "must_not_contain": ["all dependencies are safe", "no vulnerabilities"],
+        "ground_truth": "{\"block_deployment\": false, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"HIGH\", \"cve\": \"CVE-2022-22817\", \"description\": \"Pillow 9.0.0 has a known arbitrary code execution vulnerability via PIL.ImageMath.eval\", \"remediation_code\": \"Pillow>=9.0.1\"}, {\"id\": \"SA-002\", \"severity\": \"HIGH\", \"cve\": \"CVE-2020-14343\", \"description\": \"PyYAML 5.3.1 allows arbitrary code execution via yaml.load() without Loader argument\", \"remediation_code\": \"PyYAML>=6.0 and use yaml.safe_load()\"}, {\"id\": \"SA-003\", \"severity\": \"MEDIUM\", \"cve\": \"CVE-2020-28493\", \"description\": \"Jinja2 2.11.3 has a ReDoS vulnerability in the jinja2.utils.urlize function\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 4, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests dependency CVE scanning. Agent should identify multiple real CVEs in these specific versions." }
+    },
+    {
+      "id": "sa-007",
+      "name": "Clean codebase — accurate security posture score",
+      "complexity": "easy",
+      "tags": ["clean-code", "baseline", "no-critical"],
+      "input": {
+        "user_request": "Audit this Python authentication module",
+        "context": "import os\nimport bcrypt\nimport secrets\nfrom datetime import datetime, timedelta\nimport jwt\n\nSECRET_KEY = os.environ.get('JWT_SECRET_KEY')\nALGORITHM = 'HS256'\nACCESS_TOKEN_EXPIRE_MINUTES = 30\n\ndef create_access_token(user_id: int) -> str:\n    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)\n    payload = {'sub': str(user_id), 'exp': expire, 'jti': secrets.token_hex(16)}\n    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)\n\ndef hash_password(password: str) -> bytes:\n    return bcrypt.hashpw(password.encode(), bcrypt.gensalt(rounds=12))\n\ndef verify_password(plain: str, hashed: bytes) -> bool:\n    return bcrypt.checkpw(plain.encode(), hashed)"
+      },
+      "expected_output": {
+        "must_contain": ["Approved", "bcrypt", "environment variable"],
+        "must_not_contain": ["CRITICAL", "HIGH", "block_deployment\": true"],
+        "ground_truth": "{\"security_posture_score\": 95, \"verdict\": \"Approved\", \"block_deployment\": false, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"LOW\", \"description\": \"JWT_SECRET_KEY should be validated at startup — add assertion that it is not None and meets minimum length (32 chars)\"}], \"summary\": {\"CRITICAL\": 0, \"HIGH\": 0, \"MEDIUM\": 0, \"LOW\": 1}}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 5, "security_minimum": 5 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Well-written auth module using bcrypt, JWT, secrets. Must score >= 90 and have no CRITICAL/HIGH findings." }
+    },
+    {
+      "id": "sa-008",
+      "name": "OWASP A09 — Insufficient logging of security events",
+      "complexity": "medium",
+      "tags": ["logging", "owasp-a09", "monitoring"],
+      "input": {
+        "user_request": "Audit this login endpoint for security issues",
+        "context": "from flask import request, jsonify\nfrom models import User\n\n@app.route('/login', methods=['POST'])\ndef login():\n    data = request.json\n    user = User.query.filter_by(email=data['email']).first()\n    if user and user.check_password(data['password']):\n        token = generate_token(user.id)\n        return jsonify({'token': token})\n    return jsonify({'error': 'Invalid credentials'}), 401"
+      },
+      "expected_output": {
+        "must_contain": ["A09", "logging", "MEDIUM", "failed login", "brute force"],
+        "must_not_contain": ["CRITICAL", "Approved", "no issues"],
+        "ground_truth": "{\"verdict\": \"Changes requested\", \"block_deployment\": false, \"findings\": [{\"id\": \"SA-001\", \"severity\": \"MEDIUM\", \"owasp_category\": \"A09:2021 — Security Logging and Monitoring Failures\", \"description\": \"Failed login attempts are not logged. This prevents detection of brute force attacks, credential stuffing, and account takeover attempts.\", \"remediation_code\": \"import logging\\nlogger = logging.getLogger(__name__)\\n\\nif user and user.check_password(data['password']):\\n    logger.info(f'Successful login: user_id={user.id} ip={request.remote_addr}')\\n    token = generate_token(user.id)\\n    return jsonify({'token': token})\\nelse:\\n    logger.warning(f'Failed login attempt: email={data[\\\"email\\\"]} ip={request.remote_addr}')\\n    return jsonify({'error': 'Invalid credentials'}), 401\"}, {\"id\": \"SA-002\", \"severity\": \"MEDIUM\", \"description\": \"No rate limiting on login endpoint — vulnerable to brute force and credential stuffing\"}]}"
+      },
+      "evaluation": {
+        "pass_threshold": { "correctness_minimum": 4, "security_minimum": 4 }
+      },
+      "metadata": { "created": "2025-05-04", "notes": "Tests OWASP A09 detection. Missing security event logging is Medium not Critical." }
+    }
+  ]
+}
