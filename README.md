@@ -1,3 +1,5 @@
+![Ai-Agent Builder Banner](./agent-banner.svg)
+
 # Ai-Agent Builder
 
 > **Enterprise-grade, browser-native AI agent authoring tool.** 
