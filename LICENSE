@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2026 David Spies
+Copyright (c) 2025 Ai-Agent Builder Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,45 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+---
+
+## Third-Party Attributions
+
+This project makes reference to the following open standards and tools:
+
+- **agentskills.io** — Open standard for AI agent skill files (Anthropic, December 2025)
+  https://agentskills.io/home
+
+- **Conventional Commits** — Commit message specification
+  https://www.conventionalcommits.org/ — CC BY 3.0
+
+- **OWASP LLM Top 10** — LLM application security risks
+  https://owasp.org/www-project-top-10-for-large-language-model-applications/
+
+- **NIST AI Risk Management Framework** — AI risk guidelines
+  https://www.nist.gov/system/files/documents/2023/01/26/AI RMF 1.0.pdf
+
+- **Guardrails-AI** — Open source guardrails framework
+  https://github.com/guardrails-ai/guardrails — Apache 2.0
+
+- **Semgrep** — Static analysis tool
+  https://github.com/semgrep/semgrep — LGPL-2.1
+
+- **detect-secrets** — Secret scanning tool
+  https://github.com/Yelp/detect-secrets — Apache 2.0
+
+---
+
+## Font License
+
+IBM Plex Mono and Syne fonts are used in the application UI.
+
+- **IBM Plex Mono** — SIL Open Font License 1.1
+  https://github.com/IBM/plex
+
+- **Syne** — SIL Open Font License 1.1
+  https://github.com/EthanNakache/Syne-type
+
+Both fonts are loaded via Google Fonts CDN in the live version.
+The application functions fully without them (system font fallbacks are defined).
