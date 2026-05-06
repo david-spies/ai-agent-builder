@@ -1,0 +1,86 @@
+# Ai-Agent Builder — .gitignore
+ 
+# ── Node ──────────────────────────────────────────────────────────────────────
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.npm
+.yarn-integrity
+ 
+# ── Test output ───────────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+eval-results*.json
+eval-results-dry*.json
+dist/
+ 
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+*.egg
+.Python
+.venv/
+venv/
+ENV/
+env/
+pip-log.txt
+ 
+# ── Secrets — NEVER COMMIT THESE ─────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.cer
+.secrets.baseline      # detect-secrets baseline (contains hashes, not values)
+                       # uncomment below if you want to track the baseline:
+# !.secrets.baseline
+ 
+# ── Audit logs — contain sensitive session data ───────────────────────────────
+audit-*.jsonl
+logs/
+*.log
+ 
+# ── OS ────────────────────────────────────────────────────────────────────────
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+desktop.ini
+ 
+# ── IDE ───────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.project
+.classpath
+.settings/
+ 
+# ── Package build outputs ─────────────────────────────────────────────────────
+dist/
+build/
+*.zip
+*.tar.gz
+ 
+# ── Eval baselines (generated — do not commit unless intentionally updating) ──
+# Uncomment to track baselines in git:
+# !evals/golden-set/baselines/production.json
+ 
+# ── Temporary files ───────────────────────────────────────────────────────────
+tmp/
+temp/
+*.tmp
+*.bak
+*.orig
