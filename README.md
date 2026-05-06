@@ -1,6 +1,40 @@
 ![Ai-Agent Builder Banner](./agent-banner.svg)
-
 # Ai-Agent Builder
+<!-- ── Status ── -->
+![Version](https://img.shields.io/badge/version-1.0.0-6c63ff?style=flat-square&logoColor=white)
+![Status](https://img.shields.io/badge/status-stable-00d68f?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-9d96ff?style=flat-square)
+
+<!-- ── Architecture ── -->
+![Zero Backend](https://img.shields.io/badge/backend-none-6c63ff?style=flat-square&logo=ghost&logoColor=white)
+![Zero Dependencies](https://img.shields.io/badge/dependencies-zero-00d68f?style=flat-square)
+![Single File](https://img.shields.io/badge/bundle-single_html-6c63ff?style=flat-square)
+![Offline Ready](https://img.shields.io/badge/offline-ready-00d68f?style=flat-square&logo=wifi&logoColor=white)
+
+<!-- ── AI & Agent Standard ── -->
+![agentskills.io](https://img.shields.io/badge/standard-agentskills.io-6c63ff?style=flat-square)
+![Claude Compatible](https://img.shields.io/badge/Claude-compatible-f6a623?style=flat-square&logo=anthropic&logoColor=white)
+![OpenAI Compatible](https://img.shields.io/badge/OpenAI-compatible-f6a623?style=flat-square&logo=openai&logoColor=white)
+![MCP](https://img.shields.io/badge/MCP-supported-9d96ff?style=flat-square)
+
+<!-- ── Security & Compliance ── -->
+![Guardrails](https://img.shields.io/badge/guardrails-3_layers-ff5277?style=flat-square&logo=shieldsdotio&logoColor=white)
+![Red Team](https://img.shields.io/badge/red_team-32_probes-ff5277?style=flat-square)
+![Audit Trail](https://img.shields.io/badge/audit_trail-append--only-00d68f?style=flat-square)
+![No Tracking](https://img.shields.io/badge/tracking-none-00d68f?style=flat-square&logo=privacybadger&logoColor=white)
+
+<!-- ── File Support ── -->
+![File Types](https://img.shields.io/badge/file_types-17_supported-f6a623?style=flat-square)
+![RAG Ready](https://img.shields.io/badge/RAG-ready-6c63ff?style=flat-square)
+
+<!-- ── Agent Templates ── -->
+![Templates](https://img.shields.io/badge/templates-6_built--in-9d96ff?style=flat-square)
+![Multi Agent](https://img.shields.io/badge/multi--agent-supported-6c63ff?style=flat-square)
+
+<!-- ── Dev & Testing ── -->
+![Tests](https://img.shields.io/badge/tests-80%2B_assertions-00d68f?style=flat-square&logo=jest&logoColor=white)
+![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white)
+![Python](https://img.shields.io/badge/python-%3E%3D3.9-3776ab?style=flat-square&logo=python&logoColor=white)
 
 > **Enterprise-grade, browser-native AI agent authoring tool.** 
 > Build, configure, validate, and deploy production-ready AI agents — zero server, zero tracking, zero installation.
