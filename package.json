@@ -1,0 +1,81 @@
+{
+  "name": "ai-agent-builder",
+  "version": "1.0.0",
+  "description": "Enterprise-grade, browser-native AI agent authoring tool",
+  "main": "ai-agent-builder.html",
+  "scripts": {
+    "test": "jest tests/unit/",
+    "test:e2e": "jest tests/integration/ --testTimeout=60000",
+    "test:all": "jest --testTimeout=60000",
+    "test:watch": "jest tests/unit/ --watch",
+    "test:coverage": "jest tests/unit/ --coverage",
+    "lint": "eslint tests/**/*.js scripts/**/*.js",
+    "lint:fix": "eslint tests/**/*.js scripts/**/*.js --fix",
+    "validate": "bash scripts/validate.sh .",
+    "validate:strict": "bash scripts/validate.sh . --strict",
+    "eval": "python3 scripts/eval-runner.py --golden-set evals/golden-set/ --threshold 4.0",
+    "eval:dry": "python3 scripts/eval-runner.py --golden-set evals/golden-set/ --dry-run",
+    "eval:red-team": "bash scripts/eval-runner.sh --red-team --dry-run",
+    "package:dev": "bash scripts/package.sh --agent-dir . --version 1.0.0 --env dev --skip-eval",
+    "package:staging": "bash scripts/package.sh --agent-dir . --version 1.0.0 --env staging",
+    "package:prod": "bash scripts/package.sh --agent-dir . --version 1.0.0 --env production --canary 5"
+  },
+  "jest": {
+    "testEnvironment": "node",
+    "testMatch": [
+      "**/tests/**/*.test.js"
+    ],
+    "collectCoverageFrom": [
+      "tests/**/*.js"
+    ],
+    "coverageThreshold": {
+      "global": {
+        "branches": 70,
+        "functions": 80,
+        "lines": 80,
+        "statements": 80
+      }
+    },
+    "testTimeout": 10000,
+    "verbose": true
+  },
+  "devDependencies": {
+    "jest": "^29.7.0",
+    "eslint": "^8.57.0"
+  },
+  "eslintConfig": {
+    "env": {
+      "node": true,
+      "jest": true,
+      "es2022": true
+    },
+    "parserOptions": {
+      "ecmaVersion": 2022
+    },
+    "rules": {
+      "no-unused-vars": "warn",
+      "no-console": "off",
+      "prefer-const": "error",
+      "no-var": "error"
+    }
+  },
+  "keywords": [
+    "ai-agent",
+    "agent-builder",
+    "skill-md",
+    "agentskills",
+    "llm",
+    "guardrails",
+    "enterprise",
+    "zero-dependency"
+  ],
+  "author": "Ai-Agent Builder Contributors",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/your-org/ai-agent-builder.git"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
