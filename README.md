@@ -218,7 +218,7 @@ ai-agent-builder/
 
 ```bash
 # Clone or download the repo
-git clone https://github.com/your-org/ai-agent-builder.git
+git clone https://github.com/david-spies/ai-agent-builder.git
 cd ai-agent-builder
 
 # Open in browser (no server needed)
