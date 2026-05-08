@@ -607,7 +607,6 @@ The build process generates 12 files in two categories:
 
 Guardrails sit between the agent's reasoning engine and the tool execution layer, providing deterministic enforcement before any probabilistic LLM output reaches production.
 
-```
 ### Three-Layer Stack
 
 User Input
