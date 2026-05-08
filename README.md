@@ -320,38 +320,38 @@ Every agent built with Ai-Agent Builder follows this production architecture:
                              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 2: Reasoning & Planning Engine                       │
-│  • Chain-of-thought decomposition                          │
-│  • ReAct: Think → Act → Observe loop                       │
-│  • Sub-goal sequencing and dependency mapping              │
+│  • Chain-of-thought decomposition                           │
+│  • ReAct: Think → Act → Observe loop                        │
+│  • Sub-goal sequencing and dependency mapping               │
 └────────────────────────────┬────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 3: Context & Memory                                  │
 │  • Vector DB retrieval (Agentic RAG)                        │
-│  • Stateful graph — current plan position                  │
-│  • MEMORIES.md — cross-session learnings                   │
+│  • Stateful graph — current plan position                   │
+│  • MEMORIES.md — cross-session learnings                    │
 └────────────────────────────┬────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 4: Tool Execution                                    │
-│  • MCP adapter invocation                                  │
-│  • Schema-validated arguments                              │
-│  • Execution guardrails (sandbox, static analysis)         │
+│  • MCP adapter invocation                                   │
+│  • Schema-validated arguments                               │
+│  • Execution guardrails (sandbox, static analysis)          │
 └────────────────────────────┬────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 5: Evaluation & Reflection                           │
-│  • LLM-as-Judge rubric scoring                             │
-│  • Self-correction loop on failure                         │
-│  • Performance and latency check                           │
+│  • LLM-as-Judge rubric scoring                              │
+│  • Self-correction loop on failure                          │
+│  • Performance and latency check                            │
 └────────────────────────────┬────────────────────────────────┘
                              ↓
 ┌─────────────────────────────────────────────────────────────┐
 │  Layer 6: Governance & Guardrails                           │
-│  • Output DLP scan                                         │
-│  • HITL checkpoint for high-risk actions                   │
-│  • Audit trail entry written                               │
-│  • Cost ceiling enforcement                                │
+│  • Output DLP scan                                          │
+│  • HITL checkpoint for high-risk actions                    │
+│  • Audit trail entry written                                │
+│  • Cost ceiling enforcement                                 │
 └─────────────────────────────────────────────────────────────┘
 ```
 
