@@ -610,6 +610,7 @@ Guardrails sit between the agent's reasoning engine and the tool execution layer
 ### Three-Layer Stack
 
 ```
+
 User Input
     ↓
 ┌─────────────────────────────────┐
@@ -641,6 +642,8 @@ User Input
 └────────────────┬────────────────┘
                  ↓
             User / Downstream
+
+            
 ```
 
 ### The Interceptor Pattern
