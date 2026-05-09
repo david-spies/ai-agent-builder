@@ -1193,7 +1193,7 @@ We welcome contributions! Please see [CONTRIBUTING.md](CONTRIBUTING.md) for guid
 MIT License — see [LICENSE](LICENSE) for details.
 
 ```
-Copyright (c) 2025 Ai-Agent Builder Contributors
+Copyright (c) 2026 Ai-Agent Builder Contributors
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
