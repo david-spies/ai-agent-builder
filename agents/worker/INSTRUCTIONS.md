@@ -85,3 +85,77 @@ After generating all files, return a generation report:
   }
 }
 ```
+
+---
+
+## Logic Component File Generation (Added in v1.1.0)
+
+After generating all skill and reference files, generate the logic component files specified in the Architect's build plan `logic_components` section.
+
+### Generation Order (logic files always generated LAST)
+
+```
+12. logic/ROUTER.md           (if enabled — depends on skill list being finalized)
+13. logic/SEQUENCE.md         (if enabled)
+14. logic/GATE.md             (if enabled)
+15. logic/DATA_MAP.md         (if enabled — depends on source/target skill names)
+16. logic/ERROR_POLICY.md     (if enabled — depends on skill fallback chain)
+17. logic/routing-manifest.json  (ALWAYS last — compiles all rules from above files)
+```
+
+### ROUTER.md Generation Rules
+
+- Pull target skill names ONLY from the confirmed skill list — never invent skill names
+- Priority 1 rule must be the most specific condition (JSON_PATH or narrow REGEX)
+- Always include a file-extension REGEX block covering uploaded file types
+- default_fallback must be a skill that exists OR "general-assistant" OR "hitl-gate"
+- on_no_match: "hitl-gate" is safer than "general-assistant" for enterprise use cases
+
+### SEQUENCE.md Generation Rules
+
+- Set max_items based on use case: audit = 1000, code review = 500, sprint planning = 100
+- on_item_error: "continue" for audit/analysis tasks; "halt" for financial/deploy tasks
+- checkpoint_enabled: true always — never omit this for production batch jobs
+- Include the correct target_skill from the build plan (the skill being iterated)
+
+### GATE.md Generation Rules
+
+- timeout_hours: read from Architect plan or default to 24
+- notification_channel: read from feature flags or default to "slack"
+- require_reason: true always — audit quality depends on this
+- allow_modification: true for review workflows; false for binary approve/reject decisions
+- min_approvers: 1 for standard; 2 for financial or production deploy actions
+
+### DATA_MAP.md Generation Rules
+
+- File name MUST follow pattern: `{source-skill}--to--{target-skill}.map.md`
+- source_skill and target_skill MUST exactly match skill file names from the skill list
+- Include at least one mapping for the primary result field from source → primary input of target
+- Always include a mapping for the audit/session ID to maintain traceability
+- on_mapping_error: "halt" for required fields; "use_default" for optional enrichment fields
+
+### ERROR_POLICY.md Generation Rules
+
+- Always include at minimum: L0 (transient HTTP), L1 (LLM API), L3 (tool unavailable), L4 (fatal/auth)
+- Fallback chains MUST reference skills that exist in the skill list — never invent fallback skill names
+- Circuit breaker failure_threshold: 5 is default — increase to 10 for high-volume, low-stakes tools
+- partial_results_on_halt: true always — never discard completed work
+- write_error_to_memories: true always — enables cross-session error learning
+
+### routing-manifest.json Generation Rules
+
+- Compile ALL rules from ROUTER.md into the `routers[].rules[]` array
+- Include ALL enabled logic components in `logic_components[]` with `active: true`
+- Include ALL skills from the skill list in `skill_registry[]`
+- Include all DATA_MAP files in `data_maps[]`
+- Set `validation_checksums` to empty strings — these are populated by `package.sh` at build time
+- This file is always generated last — it references all other logic files
+
+### Security Flags for Logic Files
+
+Flag the following for Security Officer review:
+- ROUTER.md with a catch-all `.*` REGEX rule that routes to an elevated-scope skill
+- GATE.md without HMAC signature verification in callback_url contract
+- ERROR_POLICY.md with L4 FATAL that has retry_count > 0 (L4 must never retry)
+- DATA_MAP.md with transform expressions that attempt string concatenation of user input into commands
+- routing-manifest.json where a target_skill is not in skill_registry[] (referential integrity)

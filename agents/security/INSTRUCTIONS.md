@@ -156,3 +156,75 @@ You cite specific policy violations by ID. You never approve "good enough" — e
   }
 }
 ```
+
+---
+
+## Logic Component Security Review (Added in v1.1.0)
+
+When logic/ directory files are present in the build package, extend the review checklist with the following. Logic component vulnerabilities are **HIGH or CRITICAL** because they affect routing, approval gating, and error recovery — not just content safety.
+
+### ROUTER.md Review
+
+- [ ] No catch-all `.*` rule routes to an elevated-scope skill without explicit justification
+- [ ] No KEYWORD_ANY rule uses terms so broad they could route benign requests to destructive skills
+- [ ] JSON_PATH expressions are valid RFC 9535 syntax — invalid paths silently match nothing, creating routing holes
+- [ ] default_fallback is a safe skill — never an admin-scope or irreversible skill
+- [ ] on_no_match: "hitl-gate" preferred over "general-assistant" for sensitive agents
+- [ ] All target_skill values exist in .agents/skills/ (validate.sh checks this, but verify manually for any added since last build)
+- [ ] Routing rules cannot be overridden by user input — confirm rules are evaluated server-side, not in LLM prompt
+
+### SEQUENCE.md Review
+
+- [ ] max_items ceiling is present — unbounded batches can exhaust budget ceiling
+- [ ] item_timeout_seconds is set — runaway items must time out
+- [ ] on_item_error: "halt" is used only for financial/deploy tasks; "continue" for analysis
+- [ ] No item context carries credentials or PII from a previous item (clean context enforcement)
+- [ ] Checkpoint files written to a path with appropriate access controls — not a world-readable directory
+
+### GATE.md Review
+
+- [ ] callback_url resolution REQUIRES HMAC-SHA256 signature verification — CRITICAL if missing
+- [ ] min_approvers ≥ 1 — self-approval pathway must not exist
+- [ ] timeout auto_approve MUST produce a WARN-severity audit event — never INFO
+- [ ] Gate state file stored in .gates/ with restricted permissions — not world-readable
+- [ ] allow_modification: true only for review workflows — not for binary approve/reject (deploy, payment)
+- [ ] Rejected actions MUST be written to MEMORIES.md — verify this is documented
+
+### DATA_MAP.md Review
+
+- [ ] transform expressions are pure functions — verify no `fetch`, `require`, `import`, `process`, `eval` in any expression
+- [ ] No transform expression concatenates user-supplied data into shell commands or SQL queries
+- [ ] source JSONPath expressions do not traverse into security-sensitive fields (passwords, tokens) without explicit justification
+- [ ] on_mapping_error: "halt" is set for required fields — silent failures create data integrity gaps
+- [ ] File naming follows `{source}--to--{target}.map.md` — misnamed files are not loaded by runner
+
+### ERROR_POLICY.md Review
+
+- [ ] L4 FATAL level has max_retries: 0 — any value > 0 is a CRITICAL finding (L4 must never retry)
+- [ ] Fallback skills exist in .agents/skills/ — referential integrity
+- [ ] Circuit breaker is enabled and scoped per-skill — global circuit breakers are too aggressive
+- [ ] partial_results_on_halt: true — data loss on halt is unacceptable in production
+- [ ] on_timeout: "auto_approve" in GATE policies referenced by ERROR_POLICY is a HIGH finding — auto-approve on timeout is dangerous
+
+### routing-manifest.json Review
+
+- [ ] Valid JSON — use `python3 -m json.tool` to verify
+- [ ] All target_skill values in rules[] exist in skill_registry[]
+- [ ] All data_map file paths reference files that exist in the package
+- [ ] No comments (JSON does not support comments — any comment syntax is a parse error)
+- [ ] `active: false` components are not silently enabled by runner misconfiguration — verify runner documentation
+
+### Finding Severity for Logic Components
+
+| Issue | Severity |
+|---|---|
+| GATE without HMAC verification | CRITICAL |
+| L4 FATAL with retry_count > 0 | CRITICAL |
+| ROUTER catch-all to admin-scope skill | HIGH |
+| transform with I/O (fetch, require) | HIGH |
+| Missing max_items in SEQUENCE | HIGH |
+| auto_approve on timeout | HIGH |
+| Missing on_item_error policy | MEDIUM |
+| Checkpoint to world-readable path | MEDIUM |
+| Fallback skill not in skill_registry | MEDIUM |
+| routing-manifest.json missing components | LOW |

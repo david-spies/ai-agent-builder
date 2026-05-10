@@ -91,3 +91,82 @@ Flag for Security Officer attention:
   }
 }
 ```
+
+---
+
+## Logic Component Selection (Added in v1.1.0)
+
+After producing the file list and generation order, the Architect MUST also produce a logic component configuration as part of the build plan.
+
+### Selection Algorithm
+
+```
+FOR EACH logic component:
+
+ROUTER.md — Enable if ANY of:
+  - Use case involves routing between multiple skills
+  - Files of different types (code, doc, data) need different handling
+  - Security score thresholds should trigger specific skills automatically
+  - User explicitly requests "route" or "dispatch" behavior
+
+SEQUENCE.md — Enable if ANY of:
+  - Use case mentions "batch", "bulk", "all N repos/files/items"
+  - Input is likely an array (audit 50 repos, process 200 logs)
+  - Task must be repeated for multiple independent inputs
+
+GATE.md — Enable if ANY of:
+  - HITL feature flag is on AND any destructive action is possible
+  - Use case involves deploy, delete, payment, or permission changes
+  - Template is security, supervisor, or swarm (high-autonomy patterns)
+
+DATA_MAP.md — Enable if ANY of:
+  - Two or more skills are chained in sequence
+  - Skills have different input/output field naming conventions
+  - Template is supervisor or swarm (multiple workers hand off data)
+
+ERROR_POLICY.md — Enable if ANY of:
+  - Use case depends on external APIs or vector databases (can be unavailable)
+  - Batch processing is enabled (per-item failures need policy)
+  - Template is anything other than custom (always recommended for production)
+```
+
+### Build Plan Logic Component Section
+
+Add this section to the build plan output after `generation_order`:
+
+```json
+{
+  "logic_components": {
+    "router": {
+      "enabled": true,
+      "rationale": "Use case involves multiple file types requiring different skill routing",
+      "default_fallback": "general-assistant",
+      "estimated_rules": 8
+    },
+    "sequence": {
+      "enabled": false,
+      "rationale": "Use case is single-request, not batch"
+    },
+    "gate": {
+      "enabled": true,
+      "rationale": "Template includes deploy actions requiring HITL approval",
+      "timeout_hours": 24,
+      "notification_channel": "slack"
+    },
+    "data_map": {
+      "enabled": false,
+      "rationale": "Single-skill workflow — no cross-skill data handoff needed"
+    },
+    "error_policy": {
+      "enabled": true,
+      "rationale": "Production agent — always include recovery and circuit breaker"
+    }
+  }
+}
+```
+
+### Constraints
+- If GATE is recommended but HITL feature flag is off: flag as WARNING in build plan
+- If SEQUENCE is recommended: also enable ERROR_POLICY (batch jobs need per-item error handling)
+- If DATA_MAP is recommended: verify source and target skills both exist in generation_order
+- Never enable all 5 components by default for simple single-skill use cases — that is over-engineering
