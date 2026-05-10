@@ -616,7 +616,6 @@ Guardrails sit between the agent's reasoning engine and the tool execution layer
 
 ### Three-Layer Stack
 
-```
 User Input
     ↓
 ┌─────────────────────────────────┐
