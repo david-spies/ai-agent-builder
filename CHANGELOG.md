@@ -64,3 +64,38 @@ MAJOR — Breaking changes to generated file schema or agent interface
 MINOR — New templates, new generated files, new feature flags
 PATCH — Bug fixes, UI improvements, documentation updates
 ```
+
+---
+
+## [1.1.0] — 2025-05-04
+
+### Added — Logic Components (Deterministic Orchestration Layer)
+- `logic/ROUTER.md` — Deterministic traffic controller with regex, JSON path, and keyword routing rules evaluated before any LLM invocation
+- `logic/SEQUENCE.md` — Batch iterator controller processing arrays item-by-item with clean isolated context per item, checkpointing, and configurable error handling
+- `logic/GATE.md` — Durable HITL checkpoint persisted to `.gates/{uuid}.json`, surviving process restarts, with HMAC-signed callback URL approval
+- `logic/DATA_MAP.md` — Cross-skill JSON field mapper with JSONPath expressions, type coercion, sandboxed transform expressions, and required-field enforcement
+- `logic/ERROR_POLICY.md` — Multi-step recovery with 5 error levels, exponential backoff, fallback skill chains, and per-skill circuit breakers
+- `logic/routing-manifest.json` — Compiled rule index read by runner at startup; regenerated on every `package.sh` build
+
+### Added — Builder UI
+- LOGIC tab in right panel — live preview of all 5 logic component configurations
+- Logic Components card in canvas — 5 visual chips (◈ ROUTER, ⟳ SEQUENCE, 🔐 GATE, ⇄ DATA MAP, ⚡ ERROR POLICY) synced to feature flag toggles
+- 6 new feature flag toggles: Deterministic Router, Batch Iterator, GATE durable HITL, Cross-skill Data Mapper, Error Policy + Circuit Breaker (Red team already existed)
+- 2 new quick-fill prompts: "Batch Audit" and "Routed Workflow"
+- Build steps expanded from 12 to 18 (6 logic component generation steps added)
+- `downloadPackage()` now generates all enabled logic component files + `routing-manifest.json`
+- `showBuildCompleteModal()` groups output files by section including Logic Components
+- `doValidate()` now checks: logic component configuration, HITL↔GATE cross-check, router target existence warning
+- `syncLogicChips()` — new function keeping feature flag toggles and logic chip visuals in sync
+
+### Updated
+- `AGENTS.md` — added logic/ directory to city map, logic component decision matrix, updated working agreements and orchestration flow
+- `scripts/validate.sh` — validates component_type fields, routing-manifest.json JSON validity, all ROUTER target skills exist in .agents/skills/, GATE HMAC verification
+- `MEMORIES.md` — added logic component learnings section
+- `agents/architect/INSTRUCTIONS.md` — logic component selection added to planning step
+- `agents/worker/INSTRUCTIONS.md` — logic component file generation added to responsibilities
+- `agents/security/INSTRUCTIONS.md` — logic component security review added to checklist
+- `references/audit-trails.md` — new event types: routing_decision, item_start, item_complete, batch_complete, hitl_modified, data_mapped, circuit_open, circuit_closed, degraded_mode
+- `references/permissions.md` — GATE approval roles and SEQUENCE budget impact documented
+- `tests/unit/builder.test.js` — logic component constant tests added
+- `tests/integration/e2e.test.js` — logic/ directory existence and structure tests added
