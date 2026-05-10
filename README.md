@@ -36,7 +36,8 @@
 ![Node](https://img.shields.io/badge/node-%3E%3D18.0.0-339933?style=flat-square&logo=nodedotjs&logoColor=white)
 ![Python](https://img.shields.io/badge/python-%3E%3D3.9-3776ab?style=flat-square&logo=python&logoColor=white)
 
-> **Enterprise-grade, browser-native AI agent authoring tool.** 
+
+> **Enterprise-grade, browser-native AI agent authoring tool.**  
 > Build, configure, validate, and deploy production-ready AI agents — zero server, zero tracking, zero installation.
 
 ---
@@ -144,8 +145,6 @@ ai-agent-builder/
 │
 ├── README.md                      # This file
 │
-├── package.json                   # This file
-│
 ├── .agents/
 │   └── skills/
 │       ├── SKILL.md               # Meta-skill: how to use skills
@@ -155,6 +154,14 @@ ai-agent-builder/
 │       ├── data-validator.md      # Data pipeline validation skill
 │       ├── rag-retrieval.md       # Agentic RAG skill
 │       └── incident-response.md   # Incident triage skill
+│
+├── logic/                         # ← Logic Components (deterministic orchestration)
+│   ├── ROUTER.md                  # Deterministic router — regex/JSON path routing
+│   ├── SEQUENCE.md                # Iterator & batch controller — loop over items
+│   ├── GATE.md                    # HITL checkpoint — durable wait for approval
+│   ├── DATA_MAP.md                # Cross-skill data mapper — explicit field mapping
+│   ├── ERROR_POLICY.md            # Recovery & retry — backoff, fallback, circuit breaker
+│   └── routing-manifest.json      # Compiled rule index — read by runner at startup
 │
 ├── references/
 │   ├── guardrails.md              # Runtime safety configuration
@@ -187,8 +194,8 @@ ai-agent-builder/
 ├── scripts/
 │   ├── validate.sh                # Pre-build validation script
 │   ├── package.sh                 # Package builder script
-│   ├── eval-runner.sh             # Eval framework runner
-│   └── eval-runner.py
+│   ├── eval-runner.sh             # Eval framework shell runner
+│   └── eval-runner.py             # Eval framework Python runner
 │
 ├── docs/
 │   ├── ARCHITECTURE.md            # Deep-dive architecture docs
@@ -609,6 +616,7 @@ Guardrails sit between the agent's reasoning engine and the tool execution layer
 
 ### Three-Layer Stack
 
+```
 User Input
     ↓
 ┌─────────────────────────────────┐
@@ -640,8 +648,8 @@ User Input
 └────────────────┬────────────────┘
                  ↓
             User / Downstream
-          
 ```
+
 ### The Interceptor Pattern
 
 ```python
@@ -752,6 +760,213 @@ Run these prompts against every agent before production:
 ```
 
 Every agent must pass all 7 red-team prompts before receiving a production certification.
+
+---
+
+## Logic Components
+
+Ai-Agent Builder ships five deterministic logic components that bridge the gap between "configuration authoring" and "enterprise orchestration." These are structured Markdown definitions interpreted by an external runner (CLI, CI/CD, Claude Code) — keeping the builder itself backend-less while giving the runtime everything it needs to execute real logic.
+
+> **Design principle**: All logic components are pure configuration. They contain no executable code. The runner provides the execution engine; the `.md` files provide the deterministic specification.
+
+### Architecture Position
+
+```
+User Input
+    │
+    ▼
+[ROUTER.md] ← Deterministic routing — before any LLM is invoked
+    │
+    ▼
+[SEQUENCE.md] ← Batch controller — one clean context per item
+    │
+    ▼
+[Target Skill] (code-review.md, security-audit.md, etc.)
+    │
+    ▼
+[DATA_MAP.md] ← Explicit field mapping between skill output → next skill input
+    │
+    ▼
+[GATE.md] ← HITL checkpoint — durable wait for human approval
+    │
+    ▼
+[ERROR_POLICY.md] ← Wraps every layer — retry, fallback, circuit breaker
+    │
+    ▼
+Final Output
+```
+
+---
+
+### 1. Deterministic Router (`logic/ROUTER.md`)
+
+Routes agent execution based on strict regex, JSON path, or keyword rules — evaluated **before** any LLM is invoked. Prevents probabilistic LLM drift on high-stakes routing decisions.
+
+**Why it matters**: In security or finance, you cannot leave "Route to Approval" vs "Route to Reject" to probabilistic LLM choice. The Router makes that decision deterministically, then hands off.
+
+**Rule evaluation**: Top-down, first-match wins. Three logic types:
+
+| Logic Type | Example | Behavior |
+|---|---|---|
+| `JSON_PATH` | `$.security_score < 0.5` | Evaluates JSONPath against input object |
+| `REGEX` | `^FIX-[\d]+` | Pattern match against input string or file names |
+| `KEYWORD_ANY` | `["sprint","backlog"]` | Tokenized keyword presence check |
+
+**File extension routing example**:
+```
+.js / .ts / .py / .cpp  →  code-review.md
+.pdf / .docx / .pptx    →  rag-retrieval.md
+.csv / .json / .yaml    →  data-validator.md
+No match                →  HITL Gate (ask user)
+```
+
+Every routing decision is logged to the audit trail with exact rule match, condition, and target — making debugging deterministic rather than "the LLM chose the wrong path."
+
+---
+
+### 2. Iterator & Batch Controller (`logic/SEQUENCE.md`)
+
+Processes arrays of items one-by-one, giving each item a **clean, isolated context window**. Prevents hallucination and silent item-skipping in bulk operations.
+
+**Why it matters**: "Audit these 50 repos" or "Review these 200 logs" will cause an LLM to skip items or hallucinate completions once the context window fills. The Sequence component solves this by instantiating the target skill exactly once per item.
+
+**Key behaviors**:
+- Each item gets a completely clean context — no cross-contamination
+- Configurable concurrency (1–5 parallel threads)
+- Checkpoint files allow batch resume after failure
+- Per-item retry with exponential backoff
+- `on_item_error: continue` — failed items are collected, not halted
+
+```
+Batch of 50 repos
+    │
+    ├── Item 1: code-review.md [clean context] → result 1
+    ├── Item 2: code-review.md [clean context] → result 2
+    ├── Item 3: code-review.md [clean context] → FAILED → retry → retry → logged
+    ├── ...
+    └── Item 50: code-review.md [clean context] → result 50
+
+BatchResult { succeeded: 49, failed: 1, partial_results: [...] }
+```
+
+---
+
+### 3. HITL Gate (`logic/GATE.md`)
+
+A durable **"Pending" wait state** that survives process restarts. The agent writes its proposed action to a `.gate` file, notifies the approver, and halts until an authenticated response arrives.
+
+**Why it matters**: Enterprise SaaS requires hard checkpoints. Unlike a conversational "Are you sure?" prompt, the Gate persists state to disk — a server restart does not lose the pending approval.
+
+**Gate lifecycle**:
+```
+INACTIVE → PENDING → APPROVED → EXECUTING
+                   ↘ REJECTED → STOPPED
+                   ↘ MODIFIED → EXECUTING (with changes)
+                   ↘ TIMED_OUT → auto_reject (default)
+```
+
+**Notification payload sent to approver**:
+```
+🔐 Approval Required — [Agent Name]
+Action:     Deploy v2.1.4 to production
+Impact:     HIGH  |  Reversible: No
+Expires:    24 hours
+[ APPROVE ]  [ REJECT ]  [ MODIFY ]
+```
+
+Resolution via callback URL is HMAC-signed — the runner verifies the signature before accepting any approval, preventing forged approvals.
+
+---
+
+### 4. Cross-Skill Data Mapper (`logic/DATA_MAP.md`)
+
+Explicitly defines the JSON field mapping between one skill's output and the next skill's input. Eliminates the assumption that the LLM will "figure out" how to wire context between skills.
+
+**Why it matters**: Without explicit mapping, the LLM might use `result.severity` when the downstream skill expects `finding.risk_level`. These bugs are silent and hard to debug. DATA_MAP makes the wiring mechanical.
+
+**Mapping example** (code-review → security-audit):
+```yaml
+- source:   "$.findings[?(@.severity=='CRITICAL')]"
+  target:   "$.audit_input.flagged_findings"
+  type:     array
+  required: true
+
+- source:   "$.quality_score"
+  target:   "$.audit_input.pre_review_score"
+  type:     number
+  default:  0
+```
+
+Supports JSONPath expressions, type coercion, optional transform expressions (pure functions only — no I/O), and configurable behavior on mapping failure (`halt` or `use_default`).
+
+DATA_MAP files are named `{source}--to--{target}.map.md` and compiled into `routing-manifest.json` at build time.
+
+---
+
+### 5. Error Policy (`logic/ERROR_POLICY.md`)
+
+Multi-step recovery that goes beyond content guardrails. Handles systemic failures with retry strategies, fallback skill chains, degraded-mode operation, and circuit breakers.
+
+**Why it matters**: If a vector database is down, the agent shouldn't crash. It should retry 3 times with exponential backoff, fall back to reasoning-only mode, warn the user, and return a degraded-but-useful result.
+
+**Error levels**:
+
+| Level | Name | Strategy |
+|---|---|---|
+| 0 | TRANSIENT | Retry immediately (1–2 retries, no backoff) |
+| 1 | RETRYABLE | Exponential backoff (e.g., 3s → 9s → 27s) |
+| 2 | SKILL_FAIL | Invoke fallback skill chain |
+| 3 | DEGRADED | Switch to degraded mode (e.g., reasoning-only) |
+| 4 | FATAL | Halt, alert, return partial results |
+
+**Circuit Breaker**:
+```
+CLOSED → (5 failures) → OPEN → (30s probe) → HALF-OPEN → (2 successes) → CLOSED
+```
+
+When the circuit is OPEN, all requests fail fast without invoking the LLM — preventing cascading failures and unnecessary API cost during an outage.
+
+**Fallback chains**:
+```yaml
+rag-retrieval.md:
+  1. reasoning-only.md     ← LLM with no vector retrieval
+  2. escalate-to-human.md  ← HITL Gate if reasoning also fails
+
+security-audit.md:
+  1. llm-only-security-review.md
+  2. gate.md               ← Human security review as last resort
+```
+
+---
+
+### Logic Component File Locations
+
+| File | Location | Purpose |
+|---|---|---|
+| `ROUTER.md` | `logic/` | Deterministic routing rules |
+| `SEQUENCE.md` | `logic/` | Batch iteration controller |
+| `GATE.md` | `logic/` | HITL durable wait state |
+| `DATA_MAP.md` | `logic/` | Cross-skill field mappings |
+| `ERROR_POLICY.md` | `logic/` | Retry, fallback, circuit breaker |
+| `routing-manifest.json` | `logic/` | Compiled index — read by runner at startup |
+| `.gates/` | project root | Gate state files (auto-created) |
+| `.checkpoints/` | project root | Batch checkpoint files (auto-created) |
+| `.circuit-breaker/` | project root | Circuit state files (auto-created) |
+
+---
+
+### n8n Capability Parity
+
+| n8n Component | Ai-Agent Builder Equivalent | Approach |
+|---|---|---|
+| IF/Switch nodes | `ROUTER.md` | Deterministic regex/JSON path rules |
+| Loop Over Items | `SEQUENCE.md` | Batch controller with clean context per item |
+| Wait node | `GATE.md` | Durable PENDING state + callback URL |
+| Execute Workflow | Skill chain via `routing-manifest.json` | Data-schema-validated handoff |
+| Error Trigger | `ERROR_POLICY.md` | Retry, fallback, circuit breaker |
+| Merge node | `DATA_MAP.md` | Explicit JSONPath field mapping |
+
+> **Key difference**: n8n provides a runtime execution engine. Ai-Agent Builder provides structured Markdown definitions that an external runner (local CLI, CI/CD pipeline, Claude Code) interprets. The builder stays backend-less; the runner provides the execution layer.
 
 ---
 
