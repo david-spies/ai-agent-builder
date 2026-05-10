@@ -5,8 +5,8 @@
 orchestrator: ai-agent-builder
 pattern: Supervisor MAS (Hierarchical Multi-Agent System)
 memory: MEMORIES.md
-version: 1.0.0
-generated: 2025-05-04
+version: 1.1.0
+generated: 2026-05-04
 
 ---
 
@@ -15,12 +15,20 @@ generated: 2025-05-04
 ```
 ai-agent-builder/
 │
-├── SKILL.md                    ← Root skill manifest (YOU ARE HERE)
-├── AGENTS.md                   ← This file — orchestration map
+├── SKILL.md                    ← Root skill manifest
+├── AGENTS.md                   ← This file
 ├── MEMORIES.md                 ← Cross-session persistent memory
 │
+├── logic/                      ← Deterministic logic components
+│   ├── ROUTER.md               ← Pre-LLM routing (regex/JSON path rules)
+│   ├── SEQUENCE.md             ← Batch iterator controller
+│   ├── GATE.md                 ← HITL durable checkpoint
+│   ├── DATA_MAP.md             ← Cross-skill JSON field mapper
+│   ├── ERROR_POLICY.md         ← Retry, fallback, circuit breaker
+│   └── routing-manifest.json   ← Compiled rule index for runner
+│
 ├── .agents/skills/             ← Skill discovery directory
-│   ├── SKILL.md                ← Meta-skill for skill authoring
+│   ├── SKILL.md
 │   ├── code-review.md
 │   ├── security-audit.md
 │   ├── sprint-planner.md
@@ -48,152 +56,123 @@ ai-agent-builder/
 
 ### Orchestrator — Ai-Agent Builder (Lead)
 - **Model**: anthropic/claude-opus-4
-- **Responsibility**: Parse user intent, decompose build task into sub-goals, dispatch to workers, aggregate outputs
+- **Responsibility**: Parse user intent, decompose build task, dispatch to workers, aggregate outputs
 - **Veto Power**: Can reject any worker output before delivery
 - **HITL Triggers**: Destructive file actions, permission scope changes, budget ceiling approach
 
 ### Architect Agent
 - **Model**: anthropic/claude-opus-4
 - **Config**: ./agents/architect/INSTRUCTIONS.md
-- **Responsibility**: High-level agent pipeline design, template selection recommendation, skill dependency mapping
+- **Responsibility**: Pipeline design, template selection, skill dependency mapping, logic component selection
 - **Input**: User name + use-case description
-- **Output**: Structured build plan with ordered steps and file list
+- **Output**: Structured build plan with ordered steps, file list, and logic component configuration
 
 ### Developer Worker Agent
 - **Model**: anthropic/claude-sonnet-4
 - **Config**: ./agents/worker/INSTRUCTIONS.md
-- **Responsibility**: Generate SKILL.md, AGENTS.md, MEMORIES.md, README.md content
+- **Responsibility**: Generate SKILL.md, AGENTS.md, MEMORIES.md, all 5 logic components, and README.md
 - **Input**: Build plan from Architect
-- **Output**: Draft markdown files for Security Officer review
+- **Output**: Draft files for Security Officer review
 
 ### Security Officer Agent
 - **Model**: anthropic/claude-opus-4
 - **Config**: ./agents/security/INSTRUCTIONS.md
-- **Persona**: Cynical, highly-experienced CISO — finds reasons to block, not approve
-- **Responsibility**: Review all generated files for: hardcoded secrets, overpermissioning, missing guardrails, PII exposure, unsafe defaults
-- **Tools**: detect-secrets, policy knowledge base (Agentic RAG), OWASP checklist
-- **Veto Power**: HARD veto — can block any output from delivery
-- **Output**: Approval or "Security Debt" report with required fixes
+- **Persona**: Cynical CISO — finds reasons to block, not approve
+- **Responsibility**: Review all files including logic components for vulnerabilities, unsafe routing rules
+- **Additional checks**: ROUTER targets must exist; GATE must use HMAC; ERROR_POLICY must not allow L4 retry
+- **Veto Power**: HARD veto — blocks any output from delivery
 
 ### LLM Judge Agent
 - **Model**: anthropic/claude-opus-4
 - **Config**: ./references/llm-judge.md
-- **Responsibility**: Score output on Correctness, Security, Maintainability, Efficiency (1-5 each)
+- **Responsibility**: Score on Correctness, Security, Maintainability, Efficiency (1-5 each)
 - **Pass Threshold**: 4/5 on ALL criteria
-- **On Fail**: Feed reasoning to Developer reflection loop — do not deliver to user
 
 ---
 
 ## Orchestration Flow
 
 ```
-User Input (name + use-case + template + files)
+User Input (name + use-case + template + files + logic flags)
               ↓
-        [Orchestrator]
-         Parse intent
+        [Orchestrator]  ──── logic/ROUTER.md ────► (deterministic pre-routing)
               ↓
         [Architect Agent]
-         Design build plan
-         Map dependencies
+         Design build plan · select logic components
               ↓
         [Developer Worker]
-         Generate all .md files
+         Generate skill files + logic/ component files
+         Compile routing-manifest.json
               ↓
         [Security Officer]
-         Review for vulnerabilities
-         Check against policy KB
-              ↓ fail?
-         → Security Debt Report → Developer (max 3 cycles)
-         → If 3 cycles exceeded → HITL escalation
-              ↓ pass?
+         Review: skills, logic rules, permissions
+         Validate: ROUTER targets exist · GATE uses HMAC
+              ↓ fail? → Security Debt → Developer (max 3 cycles)
         [LLM Judge]
-         Score on 4-criterion rubric
-              ↓ fail?
-         → Reasoning fed to Developer reflection loop
+         Score 4-criterion rubric
               ↓ pass?
         [Orchestrator]
-         Package all files
-         Write audit trail
-         Update MEMORIES.md
+         Package: skills + logic/ + references
+         Update MEMORIES.md · Write audit trail
               ↓
          Deliver to user
 ```
 
 ---
 
+## Logic Component Decision Matrix
+
+| Use-Case Pattern | Recommended Components |
+|---|---|
+| Single request → single skill | None (optional ROUTER) |
+| "Audit these N items" | SEQUENCE + ERROR_POLICY |
+| Deploy / payment / delete | GATE + ERROR_POLICY |
+| Multi-skill chaining | DATA_MAP + ROUTER |
+| Unreliable external tools | ERROR_POLICY |
+| Complex enterprise workflow | All 5 components |
+
+---
+
 ## Working Agreements
 
-These rules are non-negotiable. Every agent in the system must comply.
-
-1. **Security Officer has absolute veto power** — no output bypasses review
-2. **MEMORIES.md is updated at end of every session** — learnings + avoid list maintained
-3. **HITL required for**:
-   - Any file deletion
-   - External API write calls
-   - Modifying permission scopes beyond read_write
-   - Budget ceiling > 80% consumed
-   - Revision cycle count ≥ 3
-4. **Max tool calls per run**: 50 — hard stop, summarize and return
-5. **Max wall-clock time**: 120 seconds — timeout, return partial with status
-6. **Budget ceiling**: $0.50 per run — pause and confirm before exceeding
-7. **Audit trail**: Every event logged — append-only, no exceptions
-8. **No hallucinations**: If a config value is unknown, ask the user — never invent
+1. **Security Officer** has absolute veto power
+2. **ROUTER rules** MUST reference skills that exist in .agents/skills/ — validate.sh enforces
+3. **GATE state** MUST be persisted to .gates/ — never held in memory
+4. **SEQUENCE items** MUST receive clean isolated context — no cross-contamination
+5. **MEMORIES.md** updated at end of every session
+6. **HITL required** for: file deletion, external API writes, permission scope changes, budget > 80%, revision cycles ≥ 3
+7. **Max tool calls**: 50 per run · **Budget ceiling**: $0.50 per run
+8. **Audit trail**: append-only, every event — no exceptions
 
 ---
 
 ## Discovery Prompt Template
 
-Use this prompt to identify the correct skill before loading any full file:
-
 ```
-Scan the .agents/skills directory and read only the YAML frontmatter
-and # Overview section of each .md file.
+Scan the .agents/skills directory and read only YAML frontmatter + # Overview.
 
-Based on the user request: "[INSERT REQUEST HERE]"
+If logic/ROUTER.md exists: evaluate routing rules BEFORE invoking the LLM.
+Deterministic routing always takes precedence over probabilistic skill selection.
 
-Identify the single most relevant skill.
-Return:
-  - filename: the selected skill file
-  - reason: why this skill was selected based on its description field
-  - confidence: high | medium | low
-
-If no skill matches with medium+ confidence:
-  "No relevant skill found; proceeding with general knowledge."
-```
-
----
-
-## Execution Prompt Template
-
-Use this prompt after a skill is identified:
-
-```
-You are now operating under the "[SKILL NAME]" protocol.
-Load the full content of [SKILL_FILE_PATH].md and any linked
-references in ./references/ (load references on-demand only,
-not upfront).
-
-Constraints:
-- Strict Adherence: Follow ## Instructions and ## Constraints exactly
-- Priority: This file overrides your general training data
-- No Hallucinations: If a step is not defined here, ask — do not guess
-- Output Format: Follow the structure in ## Output Format exactly
-- Security: Route all outputs through Security Officer before delivery
+Based on: "[INSERT REQUEST HERE]"
+Return: filename · reason · confidence (high|medium|low)
 ```
 
 ---
 
 ## Sub-Directory Index
 
-| Path | Agent/Role | Load Trigger |
+| Path | Load By | Load Trigger |
 |---|---|---|
-| `./agents/architect/INSTRUCTIONS.md` | Architect Agent | Build task initiated |
+| `./logic/ROUTER.md` | Runner | Every request — before LLM |
+| `./logic/SEQUENCE.md` | Runner | Batch/array input detected |
+| `./logic/GATE.md` | Runner | High-risk action requires approval |
+| `./logic/DATA_MAP.md` | Runner | Skill-to-skill data handoff |
+| `./logic/ERROR_POLICY.md` | Runner | Any skill failure |
+| `./logic/routing-manifest.json` | Runner | Startup — compiled rule index |
+| `./agents/architect/INSTRUCTIONS.md` | Architect | Build task initiated |
 | `./agents/worker/INSTRUCTIONS.md` | Developer Worker | Architect plan received |
 | `./agents/security/INSTRUCTIONS.md` | Security Officer | Worker output ready |
 | `./references/guardrails.md` | Guardrail Layer | Any tool call or output |
 | `./references/llm-judge.md` | LLM Judge | Pre-delivery evaluation |
 | `./references/audit-trails.md` | Audit System | Every event |
-| `./references/governance.md` | Compliance | Policy decisions |
-| `./references/permissions.md` | RBAC | Tool access requests |
-| `./references/versioning.md` | Version Control | Package assembly |
-| `./.agents/skills/*.md` | Skill Discovery | Frontmatter only at first |
