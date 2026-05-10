@@ -9,7 +9,7 @@ load: on-demand
 # Ai-Agent Builder · References
 
 version: 1.0.0
-generated: 2025-05-04
+generated: 2026-05-04
 frameworks: [SOC 2 Type II, GDPR, HIPAA, ISO 27001, NIST AI RMF]
 
 ---
@@ -293,3 +293,73 @@ reviews:
     - Privacy impact assessment update
     - Governance framework review and update
 ```
+
+---
+
+## Logic Component Governance (Added in v1.1.0)
+
+### Change Management for Logic Components
+
+Logic component changes carry higher risk than skill file changes because they affect routing, approval gating, and error recovery — systemic behaviors that apply across all skills.
+
+| Change Type | Risk | Approvers Required | Eval Required | Deploy Window |
+|---|---|---|---|---|
+| Add new ROUTER rule | MEDIUM | agent_author, tech_lead | YES | Business hours |
+| Modify ROUTER default_fallback | HIGH | agent_author, tech_lead, security_officer | YES | Business hours |
+| Change GATE timeout or on_timeout | HIGH | agent_author, tech_lead, security_officer | YES | Business hours |
+| Change GATE min_approvers | CRITICAL | agent_author, CISO | YES + red_team | Maintenance window |
+| Modify ERROR_POLICY L4 behavior | HIGH | agent_author, tech_lead, security_officer | YES | Business hours |
+| Add circuit_breaker scope | MEDIUM | agent_author, tech_lead | YES | Any time |
+| Change DATA_MAP required fields | HIGH | agent_author, tech_lead | YES | Business hours |
+
+### Audit Requirements for Logic Components
+
+All logic component events are subject to the same audit retention policy as core agent events:
+
+- `routing_decision` — 90-day retention (standard)
+- `gate_opened`, `hitl_approved`, `hitl_rejected` — 365-day retention (security events)
+- `gate_signature_invalid` — 365-day retention + immediate CRITICAL alert
+- `circuit_open`, `fatal_error` — 365-day retention + automated incident ticket
+- `degraded_mode_activated` — 90-day retention + WARN alert
+
+### GATE Approval Authorization Policy
+
+```yaml
+gate_authorization:
+  standard_actions:
+    scope: any authenticated operator in approval_roles
+    min_approvers: 1
+    examples: [code deploy to staging, config change, report publish]
+
+  elevated_actions:
+    scope: tech_lead or above
+    min_approvers: 1
+    examples: [production deploy, external API write, database schema change]
+
+  critical_actions:
+    scope: security_officer AND CISO
+    min_approvers: 2
+    examples: [production database delete, payment initiation, permission scope escalation]
+    additional: board_notification required for actions > $10,000 or affecting > 10,000 users
+```
+
+### Circuit Breaker Incident Response
+
+When `circuit_open` fires for a production skill:
+
+```
+0:00 — circuit_open logged at ERROR severity
+0:01 — Automated Slack alert to #ai-agent-incidents
+0:05 — On-call engineer acknowledges
+0:10 — Identify root cause: is the downstream service down?
+0:20 — Decision: fix downstream OR configure fallback skill in ERROR_POLICY.md
+0:30 — If fallback configured and tested: circuit auto-closes after recovery
+1:00 — Post-mortem scheduled if circuit was open > 15 minutes
+```
+
+### Compliance Notes
+
+- **GATE HMAC verification** is required for SOC 2 CC6.1 (logical access) compliance
+- **Routing audit trail** entries satisfy SOC 2 CC7.2 (monitoring) requirements
+- **SEQUENCE checkpoint** files must be stored in encrypted-at-rest storage for HIPAA compliance if items contain PHI
+- **ERROR_POLICY partial_results** must be reviewed for data minimization (GDPR Art. 5) before delivery to user

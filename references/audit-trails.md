@@ -13,7 +13,7 @@ version: 1.0.0
 storage: append-only
 retention_days: 90
 pii_redaction: enabled
-generated: 2025-05-04
+generated: 2026-05-04
 
 ---
 
@@ -469,3 +469,80 @@ alerting:
       threshold: 0.40  # 80% of $0.50 ceiling
       alert_channel: slack
 ```
+
+---
+
+## Logic Component Event Types (Added in v1.1.0)
+
+The following additional event types are emitted by logic component execution:
+
+### Router Events
+
+| Event Type | Actor | Severity | Description |
+|---|---|---|---|
+| `routing_decision` | router | INFO | Rule matched — request routed to target skill |
+| `routing_no_match` | router | WARN | No rule matched — routed to fallback |
+| `routing_fallback_used` | router | WARN | Default fallback invoked |
+
+**Routing decision event schema extension:**
+```json
+{
+  "event_type": "routing_decision",
+  "rule_priority": 3,
+  "rule_condition": "^FIX-[\\d]+",
+  "logic_type": "REGEX",
+  "target_skill": "incident-response.md",
+  "deterministic": true,
+  "fallback_used": false,
+  "input_hash": "sha256-of-sanitized-input"
+}
+```
+
+### Sequence/Batch Events
+
+| Event Type | Actor | Severity | Description |
+|---|---|---|---|
+| `batch_start` | sequence | INFO | Batch job initiated |
+| `item_start` | sequence | INFO | Individual item processing started |
+| `item_complete` | sequence | INFO | Individual item completed successfully |
+| `item_failed` | sequence | WARN | Individual item failed after retries |
+| `item_retry` | sequence | WARN | Item retry attempt |
+| `batch_checkpoint` | sequence | INFO | Checkpoint file written |
+| `batch_complete` | sequence | INFO | All items processed |
+| `batch_halted` | sequence | ERROR | Batch halted due to item failure (halt mode) |
+
+### Gate/HITL Events
+
+| Event Type | Actor | Severity | Description |
+|---|---|---|---|
+| `gate_opened` | gate | WARN | Gate entered PENDING state — awaiting approval |
+| `gate_notified` | gate | INFO | Approver notified via configured channel |
+| `hitl_approved` | hitl_operator | INFO | Approval received and verified |
+| `hitl_rejected` | hitl_operator | WARN | Request rejected by approver |
+| `hitl_modified` | hitl_operator | WARN | Approver submitted modified payload |
+| `hitl_timeout` | system | WARN | Gate timed out — auto-action applied |
+| `hitl_timeout_auto_approve` | system | WARN | Timeout triggered auto-approve (HIGH alert) |
+| `gate_signature_invalid` | gate | CRITICAL | HMAC verification failed — possible forgery |
+
+### Data Mapping Events
+
+| Event Type | Actor | Severity | Description |
+|---|---|---|---|
+| `data_mapped` | data-mapper | INFO | Field mapping completed successfully |
+| `mapping_field_defaulted` | data-mapper | INFO | Optional field used default value |
+| `mapping_field_skipped` | data-mapper | WARN | Optional field missing — skipped |
+| `mapping_failed` | data-mapper | ERROR | Required field mapping failed — halted |
+| `transform_applied` | data-mapper | INFO | Transform expression evaluated |
+
+### Error Recovery Events
+
+| Event Type | Actor | Severity | Description |
+|---|---|---|---|
+| `retry_attempt` | error-policy | WARN | Skill retry initiated with backoff |
+| `fallback_invoked` | error-policy | WARN | Fallback skill activated |
+| `degraded_mode_activated` | error-policy | ERROR | Skill running in degraded mode |
+| `circuit_open` | error-policy | ERROR | Circuit breaker opened for skill |
+| `circuit_half_open` | error-policy | WARN | Circuit breaker probing recovery |
+| `circuit_closed` | error-policy | INFO | Circuit breaker recovered — normal operation |
+| `fatal_error` | error-policy | CRITICAL | Unrecoverable failure — execution halted |
+| `partial_results_returned` | error-policy | WARN | Batch halted — partial results delivered |

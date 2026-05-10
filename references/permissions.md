@@ -11,7 +11,7 @@ load: on-demand
 
 version: 1.0.0
 default_scope: read_only
-generated: 2025-05-04
+generated: 2026-05-04
 
 ---
 
@@ -324,3 +324,91 @@ required_env_vars:
 ```
 
 Attempting to use any tool not in `required_tools` or `optional_tools` will raise a `PermissionDeniedError` at runtime, regardless of the declared scope level.
+
+---
+
+## Logic Component Permission Requirements (Added in v1.1.0)
+
+Each logic component has specific permission requirements that must be accounted for in the agent's declared scope.
+
+### ROUTER.md
+
+```yaml
+required_scope: read_only
+additional_requirements:
+  - file:read (.agents/skills/ for rule validation at startup)
+  - No external calls — routing is a local, deterministic operation
+hitl_required: never
+audit_required: true   # every routing_decision event must be logged
+```
+
+### SEQUENCE.md
+
+```yaml
+required_scope: read_write
+additional_requirements:
+  - file:write (.checkpoints/ — checkpoint files)
+  - file:read  (input files per item if file-based batch)
+hitl_required:
+  - if target_skill requires HITL: propagated to each item
+  - if item count > 500: WARN and confirm before starting
+  - if estimated_cost > 80% of budget ceiling: PAUSE and confirm
+budget_impact: HIGH     # multiplied by item count
+audit_required: true    # batch_start, item_complete, batch_complete
+```
+
+### GATE.md
+
+```yaml
+required_scope: read_write
+additional_requirements:
+  - file:write (.gates/ — gate state files, append-only pattern)
+  - web:fetch:POST (callback_url — for receiving approval response)
+  - notifications: slack|email|webhook (outbound only, via configured channel)
+hitl_required: by_definition   # GATE IS the HITL mechanism
+approval_roles:
+  - configurable per gate instance
+  - default: any authenticated operator
+  - admin-scope actions: require 2 approvers (min_approvers: 2)
+self_approval: NEVER_PERMITTED
+audit_required: true   # gate_opened, hitl_approved/rejected, gate_signature_invalid
+```
+
+### DATA_MAP.md
+
+```yaml
+required_scope: read_only
+additional_requirements:
+  - none — data mapping is an in-memory transformation
+  - transform expressions must be sandboxed (no I/O scope needed)
+hitl_required: never
+audit_required: true   # data_mapped, mapping_failed events
+security_note: >
+  Transform expressions run in a sandboxed context. The runner MUST deny
+  access to fetch, require, import, process, global, window, and eval.
+  Violation of sandbox = CRITICAL security finding.
+```
+
+### ERROR_POLICY.md
+
+```yaml
+required_scope: matches target_skill scope
+additional_requirements:
+  - file:write (.circuit-breaker/ — circuit state files)
+  - file:write (MEMORIES.md — recurring failure patterns)
+  - notifications: inherits from GATE.md if fallback chain includes gate
+hitl_required:
+  - if fallback chain includes gate.md: inherits GATE HITL requirements
+  - if L4 FATAL with partial_results: HITL recommended before discarding
+audit_required: true   # all retry, fallback, circuit, fatal events
+```
+
+### Cross-Component Scope Summary
+
+| Component | Min Scope | file:write target | External calls |
+|---|---|---|---|
+| ROUTER | read_only | none | none |
+| SEQUENCE | read_write | .checkpoints/ | none |
+| GATE | read_write | .gates/ | callback_url (POST) |
+| DATA_MAP | read_only | none | none |
+| ERROR_POLICY | target_skill's scope | .circuit-breaker/, MEMORIES.md | inherits GATE if in fallback |
