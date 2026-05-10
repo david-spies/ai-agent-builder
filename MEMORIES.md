@@ -3,7 +3,7 @@
 # Updated automatically at end of every session
 
 version: 1.0.0
-last_session: 2025-05-04T00:00:00Z
+last_session: 2026-05-04T00:00:00Z
 session_count: 0
 schema: memories/v1
 
@@ -110,3 +110,33 @@ _Items identified during sessions that should be addressed in future builds._
 
 _This file is maintained automatically. Do not edit manually._
 _If corrupted, delete this file — it will be regenerated on next session start._
+
+---
+
+## Logic Component Learnings
+
+### Router Configuration Patterns
+- ROUTER.md rules with JSON_PATH conditions are most reliable for security score routing
+- KEYWORD_ANY rules should use domain-specific terms, not generic words ("sprint" not "plan")
+- File extension REGEX rules (.js|ts|py) are the most reliable activation trigger
+- Always put JSON_PATH rules above REGEX rules — more specific first
+
+### Sequence Batch Patterns
+- on_item_error: continue is almost always preferred over halt for audit batch jobs
+- checkpoint_interval: 10 is a good default — adjust down for expensive per-item operations
+- max_concurrency: 1 is safest for stateful operations; 3-5 is fine for read-only analysis
+
+### Gate Approval Patterns
+- timeout_hours: 24 is standard; reduce to 4 for low-stakes actions
+- require_reason: true should always be enabled — improves audit trail quality
+- notification_channel: slack is most reliable; pagerduty for P0/P1 actions only
+
+### Data Map Anti-Patterns to Avoid
+- Do NOT use wildcard source paths like $.* — too broad, maps unexpected fields
+- Do NOT chain more than 3 transforms on a single field — use post_transform instead
+- Always declare required: false with a sensible default for optional fields
+
+### Error Policy Patterns
+- ERROR_POLICY.md with vector DB timeout → reasoning-only fallback is the most common use case
+- Circuit breaker failure_threshold: 5 is appropriate for most services
+- Always set partial_results_on_halt: true — never discard completed work
