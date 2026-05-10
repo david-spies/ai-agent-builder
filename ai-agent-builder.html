@@ -297,7 +297,8 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
 .ll-warn{background:rgba(246,166,35,.1);color:var(--amber)}
 
 /* ── notifications ── */
-.notif{position:fixed;top:14px;right:14px;z-index:9999;background:var(--surface);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 14px;font-size:11px;display:none;gap:7px;align-items:center;max-width:300px;box-shadow:0 8px 24px rgba(0,0,0,.4);animation:slideIn .18s ease}
+.notif{position:fixed;bottom:20px;left:276px;z-index:9999;background:var(--surface3);border:1px solid var(--border2);border-radius:var(--radius);padding:9px 14px;font-size:11px;display:none;gap:7px;align-items:center;max-width:320px;box-shadow:0 4px 16px rgba(0,0,0,.5);animation:slideUp .18s ease}
+@keyframes slideUp{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 .notif.show{display:flex}
 @keyframes slideIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)}}
 
@@ -318,7 +319,14 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
 .val-text{font-size:11px;color:var(--text2);flex:1}
 .val-text strong{color:var(--text);font-weight:700}
 
-/* ── misc ── */
+/* ── logic chips ── */
+.logic-chip{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:10px 8px;text-align:center;cursor:pointer;transition:all .15s;position:relative;overflow:hidden;user-select:none}
+.logic-chip:hover{border-color:var(--accent);background:rgba(108,99,255,.04);transform:translateY(-1px)}
+.logic-chip.active{border-color:var(--accent);background:rgba(108,99,255,.06)}
+.logic-chip.active::after{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:var(--accent)}
+.lc-icon{font-size:16px;margin-bottom:4px;line-height:1}
+.lc-name{font-family:var(--mono);font-size:8px;font-weight:700;color:var(--text);letter-spacing:.8px;text-transform:uppercase;margin-bottom:2px}
+.lc-desc{font-family:var(--mono);font-size:8px;color:var(--text3)}
 .divider{height:1px;background:var(--border);margin:14px 0}
 .flex{display:flex}
 .flex-center{display:flex;align-items:center}
@@ -381,10 +389,10 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
       </div>
 
       <div class="nav-section-label" style="margin-top:18px">Workspace</div>
-      <div class="nav-item" onclick="switchView('templates')"><span>📐</span><span>Templates Library</span></div>
-      <div class="nav-item" onclick="switchView('skills')"><span>🔧</span><span>Skills Registry</span><span class="nav-badge">12</span></div>
-      <div class="nav-item" onclick="switchView('evals')"><span>⚖️</span><span>Eval Framework</span></div>
-      <div class="nav-item" onclick="switchView('audit')"><span>📋</span><span>Audit Trail</span></div>
+      <div class="nav-item" data-view="templates" onclick="switchView('templates')"><span>📐</span><span>Templates Library</span></div>
+      <div class="nav-item" data-view="skills"    onclick="switchView('skills')"><span>🔧</span><span>Skills Registry</span><span class="nav-badge" id="skills-badge">12</span></div>
+      <div class="nav-item" data-view="evals"     onclick="switchView('evals')"><span>⚖️</span><span>Eval Framework</span></div>
+      <div class="nav-item" data-view="audit"     onclick="switchView('audit')"><span>📋</span><span>Audit Trail</span></div>
     </div>
 
     <div class="sidebar-footer">
@@ -444,6 +452,8 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
             <span class="qfill" onclick="quickFill('rag-agent')">RAG Agent</span>
             <span class="qfill" onclick="quickFill('code-gen')">Code Generator</span>
             <span class="qfill" onclick="quickFill('incident')">Incident Response</span>
+            <span class="qfill" onclick="quickFill('batch-audit')">Batch Audit</span>
+            <span class="qfill" onclick="quickFill('routed-workflow')">Routed Workflow</span>
             <span class="qfill" onclick="quickFill('custom')">Custom…</span>
           </div>
         </div>
@@ -563,6 +573,51 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
           </div>
         </div>
 
+        <!-- logic components -->
+        <div class="card full-width">
+          <div class="card-header">
+            <div class="card-icon" style="background:rgba(0,200,224,.1)">⚙</div>
+            <div class="card-title">Logic Components</div>
+            <span class="badge badge-cyan" style="font-size:8px;margin-left:4px">deterministic</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px" id="logic-grid">
+            <div class="logic-chip" id="lc-router"  title="Routes execution via regex/JSONPath rules before LLM — click to preview"
+              onclick="switchTab(null,'logic');document.getElementById('router-code')?.closest('.code-card')?.scrollIntoView({behavior:'smooth',block:'start'})">
+              <div class="lc-icon">◈</div>
+              <div class="lc-name">ROUTER</div>
+              <div class="lc-desc">Pre-LLM routing</div>
+            </div>
+            <div class="logic-chip" id="lc-seq"     title="Processes arrays item-by-item with clean context — click to preview"
+              onclick="switchTab(null,'logic');document.getElementById('seq-code')?.closest('.code-card')?.scrollIntoView({behavior:'smooth',block:'start'})">
+              <div class="lc-icon">⟳</div>
+              <div class="lc-name">SEQUENCE</div>
+              <div class="lc-desc">Batch iterator</div>
+            </div>
+            <div class="logic-chip" id="lc-gate"    title="Durable HITL wait state — survives restarts — click to preview"
+              onclick="switchTab(null,'logic');document.getElementById('gate-code')?.closest('.code-card')?.scrollIntoView({behavior:'smooth',block:'start'})">
+              <div class="lc-icon">🔐</div>
+              <div class="lc-name">GATE</div>
+              <div class="lc-desc">HITL checkpoint</div>
+            </div>
+            <div class="logic-chip" id="lc-datamap" title="Explicit JSON field mapping between skill outputs and inputs — click to preview"
+              onclick="switchTab(null,'logic');document.getElementById('map-code')?.closest('.code-card')?.scrollIntoView({behavior:'smooth',block:'start'})">
+              <div class="lc-icon">⇄</div>
+              <div class="lc-name">DATA MAP</div>
+              <div class="lc-desc">Cross-skill mapper</div>
+            </div>
+            <div class="logic-chip" id="lc-errpol"  title="Retry, fallback chains, circuit breaker — click to preview"
+              onclick="switchTab(null,'logic');document.getElementById('err-code')?.closest('.code-card')?.scrollIntoView({behavior:'smooth',block:'start'})">
+              <div class="lc-icon">⚡</div>
+              <div class="lc-name">ERROR POLICY</div>
+              <div class="lc-desc">Recovery & retry</div>
+            </div>
+          </div>
+          <div style="margin-top:10px;font-family:var(--mono);font-size:9px;color:var(--text3);line-height:1.6">
+            Logic components are pure Markdown definitions — interpreted by your runner (CLI, CI/CD, Claude Code).
+            The builder stays backend-less; the runner provides execution. Toggle components in Feature Flags above.
+          </div>
+        </div>
+
         <!-- pipeline -->
         <div class="card full-width">
           <div class="card-header">
@@ -678,6 +733,41 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
             </div>
             <label class="toggle"><input type="checkbox" id="ff-redteam"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
           </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Deterministic Router</div>
+              <div class="toggle-hint">Hard-coded routing before LLM invoked</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked id="ff-router"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Batch Iterator (SEQUENCE)</div>
+              <div class="toggle-hint">Process arrays item-by-item cleanly</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked id="ff-sequence"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">GATE durable HITL state</div>
+              <div class="toggle-hint">Persist approval state across restarts</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked id="ff-gate"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Cross-skill Data Mapper</div>
+              <div class="toggle-hint">Explicit JSON field mapping between skills</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked id="ff-datamap"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
+          <div class="toggle-row">
+            <div class="toggle-label-wrap">
+              <div class="toggle-label">Error Policy + Circuit Breaker</div>
+              <div class="toggle-hint">Retry, fallback, degraded-mode recovery</div>
+            </div>
+            <label class="toggle"><input type="checkbox" checked id="ff-errpolicy"><div class="toggle-track"></div><div class="toggle-thumb"></div></label>
+          </div>
         </div>
 
       </div>
@@ -687,12 +777,16 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
   <!-- ══ RIGHT PANEL ══ -->
   <div class="panel">
     <div class="panel-topbar">
-      <div class="panel-title">Output Preview</div>
+      <div style="flex:1;min-width:0">
+        <div class="panel-title">Output Preview</div>
+        <div style="font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:1px;margin-top:1px" id="panel-sub">SKILL.MD · LIVE PREVIEW</div>
+      </div>
       <span class="badge badge-cyan mono" style="font-size:8px">LIVE</span>
     </div>
     <div class="tabs">
       <div class="tab active" onclick="switchTab(this,'skill')">SKILL</div>
       <div class="tab" onclick="switchTab(this,'agents')">AGENTS</div>
+      <div class="tab" onclick="switchTab(this,'logic')">LOGIC</div>
       <div class="tab" onclick="switchTab(this,'eval')">EVAL</div>
       <div class="tab" onclick="switchTab(this,'log')">LOG</div>
     </div>
@@ -810,6 +904,141 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
         </div>
       </div>
 
+      <!-- LOGIC tab -->
+      <div id="tab-logic" style="display:none">
+
+        <!-- Router -->
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title" style="color:var(--cyan)">◈ ROUTER.md</span>
+            <div class="code-card-actions">
+              <span class="code-act" onclick="copyCode('router-code')">copy</span>
+              <span class="code-act" onclick="downloadSingle('ROUTER.md','router-code')">save</span>
+            </div>
+          </div>
+          <div class="code-body" id="router-code"><span class="cc">---
+</span><span class="ck">component_type</span>: <span class="cv">logic-gate</span>
+<span class="ck">routing_strategy</span>: <span class="cv">deterministic</span>
+<span class="ck">evaluation_order</span>: <span class="cv">top-down-first-match</span>
+<span class="ck">default_fallback</span>: <span class="cv">general-assistant</span>
+<span class="ck">on_no_match</span>: <span class="cv">hitl-gate</span>
+<span class="cc">---
+
+## Execution Rules</span>
+
+<span class="cv">| Priority | Condition | Type | Target Skill |
+| 1 | $.security_score &lt; 0.5 | JSON_PATH | security-audit.md |
+| 2 | $.severity == "CRITICAL" | JSON_PATH | incident-response.md |
+| 3 | ^FIX-[\d]+ | REGEX | incident-response.md |
+| 4 | ^(feat|fix|chore)\(.+\): | REGEX | code-review.md |
+| 5 | ["sprint","backlog"] | KEYWORD_ANY | sprint-planner.md |
+| 6 | \.(js|ts|py|cpp)$ | REGEX | code-review.md |
+| 7 | \.(pdf|docx|pptx)$ | REGEX | rag-retrieval.md |
+| 8 | \.(csv|json|yaml)$ | REGEX | data-validator.md |</span></div>
+        </div>
+
+        <!-- Sequence -->
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title" style="color:var(--amber)">⟳ SEQUENCE.md</span>
+            <div class="code-card-actions">
+              <span class="code-act" onclick="copyCode('seq-code')">copy</span>
+              <span class="code-act" onclick="downloadSingle('SEQUENCE.md','seq-code')">save</span>
+            </div>
+          </div>
+          <div class="code-body" id="seq-code"><span class="cc">---
+</span><span class="ck">component_type</span>: <span class="cv">iterator</span>
+<span class="ck">execution_mode</span>: <span class="cv">sequential</span>
+<span class="ck">max_concurrency</span>: <span class="cv">5</span>
+<span class="ck">max_items</span>: <span class="cv">1000</span>
+<span class="ck">on_item_error</span>: <span class="cv">continue</span>
+<span class="ck">retry_count</span>: <span class="cv">2</span>
+<span class="ck">checkpoint_enabled</span>: <span class="cv">true</span>
+<span class="cc">---
+</span>
+<span class="cv">Each item → clean isolated context → target_skill
+No cross-contamination between items.
+Checkpoint every 10 items → resume on failure.</span></div>
+        </div>
+
+        <!-- Gate -->
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title" style="color:var(--red)">🔐 GATE.md</span>
+            <div class="code-card-actions">
+              <span class="code-act" onclick="copyCode('gate-code')">copy</span>
+              <span class="code-act" onclick="downloadSingle('GATE.md','gate-code')">save</span>
+            </div>
+          </div>
+          <div class="code-body" id="gate-code"><span class="cc">---
+</span><span class="ck">component_type</span>: <span class="cv">hitl-checkpoint</span>
+<span class="ck">timeout_hours</span>: <span class="cv" id="gate-timeout">24</span>
+<span class="ck">on_timeout</span>: <span class="cv">auto_reject</span>
+<span class="ck">require_reason</span>: <span class="cv">true</span>
+<span class="ck">allow_modification</span>: <span class="cv">true</span>
+<span class="ck">min_approvers</span>: <span class="cv">1</span>
+<span class="ck">notification_channel</span>: <span class="cv" id="gate-channel">slack</span>
+<span class="cc">---
+
+## States</span>
+<span class="cv">INACTIVE → PENDING → APPROVED → EXECUTING
+                   ↘ REJECTED → STOPPED
+                   ↘ MODIFIED → EXECUTING (changes)
+                   ↘ TIMED_OUT → auto_reject</span></div>
+        </div>
+
+        <!-- Data Map -->
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title" style="color:var(--green)">⇄ DATA_MAP.md</span>
+            <div class="code-card-actions">
+              <span class="code-act" onclick="copyCode('map-code')">copy</span>
+              <span class="code-act" onclick="downloadSingle('DATA_MAP.md','map-code')">save</span>
+            </div>
+          </div>
+          <div class="code-body" id="map-code"><span class="cc">---
+</span><span class="ck">component_type</span>: <span class="cv">data-mapper</span>
+<span class="ck">source_skill</span>: <span class="cv" id="map-source">code-review.md</span>
+<span class="ck">target_skill</span>: <span class="cv" id="map-target">security-audit.md</span>
+<span class="ck">on_mapping_error</span>: <span class="cv">halt</span>
+<span class="cc">---
+
+## Mappings</span>
+<span class="cv">$.findings[?(severity==CRITICAL)] → $.audit_input.flagged
+$.quality_score                  → $.audit_input.pre_score
+$.files_reviewed                 → $.audit_input.scope.files
+$.verdict                        → $.audit_input.prior_verdict</span></div>
+        </div>
+
+        <!-- Error Policy -->
+        <div class="code-card">
+          <div class="code-card-header">
+            <span class="code-card-title" style="color:var(--accent2)">⚡ ERROR_POLICY.md</span>
+            <div class="code-card-actions">
+              <span class="code-act" onclick="copyCode('err-code')">copy</span>
+              <span class="code-act" onclick="downloadSingle('ERROR_POLICY.md','err-code')">save</span>
+            </div>
+          </div>
+          <div class="code-body" id="err-code"><span class="cc">## Error Levels</span>
+<span class="cv">L0 TRANSIENT  → retry 1-2x immediately
+L1 RETRYABLE  → exponential backoff (3s→9s→27s)
+L2 SKILL_FAIL → invoke fallback_skill chain
+L3 DEGRADED   → switch to degraded mode
+L4 FATAL      → halt · alert · return partial</span>
+<span class="cc">
+## Circuit Breaker</span>
+<span class="cv">CLOSED → (5 failures) → OPEN
+OPEN   → (30s probe)  → HALF-OPEN
+HALF-OPEN → (2 ok)    → CLOSED</span>
+<span class="cc">
+## Fallback Chains</span>
+<span class="cv">rag-retrieval  → reasoning-only → gate
+security-audit → llm-only      → gate
+code-review    → basic-lint-only</span></div>
+        </div>
+
+      </div>
+
       <!-- EVAL tab -->
       <div id="tab-eval" style="display:none">
         <div style="margin-bottom:10px">
@@ -904,6 +1133,12 @@ const BUILD_STEPS = [
   'Assembling versioning manifest and changelogs',
   'Running deterministic eval framework setup',
   'Building MEMORIES.md session persistence layer',
+  'Generating ROUTER.md — deterministic routing rules',
+  'Generating SEQUENCE.md — batch iterator controller',
+  'Generating GATE.md — HITL durable checkpoint',
+  'Generating DATA_MAP.md — cross-skill field mapper',
+  'Generating ERROR_POLICY.md — retry & circuit breaker',
+  'Compiling routing-manifest.json rule index',
   'Red-team adversarial eval set generation',
   'Packaging deployment bundle',
 ];
@@ -1028,6 +1263,8 @@ const QUICK_FILLS = {
   'rag-agent':      'Build a self-directed RAG agent that queries an internal knowledge base, evaluates source quality and relevance, iteratively re-queries if context is insufficient, and cites every source document in the final answer.',
   'code-gen':       'Generate production-grade code from natural language specifications. Apply team coding standards, write unit tests, check for security issues, and produce a PR-ready diff with documentation.',
   'incident':       'Triage and respond to production incidents automatically. Correlate alerts, identify root cause via log analysis, page the right on-call, draft a structured incident report, and suggest remediation steps.',
+  'batch-audit':    'Batch-audit up to 1000 repositories or files sequentially. Each item receives a clean isolated context. Checkpoints every 10 items allow resume on failure. Aggregate results into a summary report.',
+  'routed-workflow':'Route incoming requests deterministically before any LLM is invoked: code files → code-review, documents → RAG, data files → validator, security flags → audit, unknown → HITL gate.',
   'custom':         '',
 };
 
@@ -1054,6 +1291,8 @@ function init() {
   updateSkillCode();
   updateAgentsCode();
   updateTopbarBadge();
+  syncLogicChips();  // sync feature-flag toggles → logic chip active states
+
   // seed files from uploaded context — demonstrates all supported types
   const seedFiles = [
     { name:'architect-blueprint.md',      size:3420 },
@@ -1072,6 +1311,7 @@ function init() {
   updateStats();
   updateFilterBar();
   log('Session initialized · 7 reference files loaded', 'INFO');
+  log('Logic components loaded: ROUTER · GATE · ERROR_POLICY (enabled)', 'INFO');
   log('Workspace ready · select a template to begin', 'OK');
   updateTimestamps();
 }
@@ -1093,6 +1333,8 @@ function activateAgent(id) {
   const agent = S.agents.find(a => a.id === id);
   document.getElementById('agent-name').value = agent.name === 'Untitled Agent' ? '' : agent.name;
   document.getElementById('topbar-crumb').textContent = agent.name;
+  // Clear workspace nav active state when switching to an agent
+  document.querySelectorAll('.nav-item[data-view]').forEach(n => n.classList.remove('active'));
   renderAgentNav();
   updateTopbarBadge();
   notify(`Switched to "${agent.name}"`, false);
@@ -1106,12 +1348,16 @@ function createNewAgent() {
   document.getElementById('use-case').value = '';
   document.getElementById('topbar-crumb').textContent = 'New Agent';
   S.template = null;
+  S.built = false;
   document.querySelectorAll('.tpl-card').forEach(c => c.classList.remove('selected'));
+  // Clear workspace nav active state; keep agent nav
+  document.querySelectorAll('.nav-item[data-view]').forEach(n => n.classList.remove('active'));
   renderAgentNav();
   renderPipeline('custom');
   updateSkillCode();
   updateAgentsCode();
   updateTopbarBadge();
+  onUseCaseChange('');
   notify('New agent created', false);
 }
 
@@ -1460,35 +1706,167 @@ function addSkillModal() {
 
 // ══════════════ TABS ══════════════
 function switchTab(el, id) {
+  // el can be a DOM element or null (when called programmatically with just id)
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  el.classList.add('active');
-  ['tab-skill','tab-agents','tab-eval','tab-log'].forEach(t => {
-    document.getElementById(t).style.display = (t === 'tab-' + id) ? 'block' : 'none';
+  if (el && el.classList) {
+    el.classList.add('active');
+  } else {
+    // Find the tab element by matching its onclick
+    const match = [...document.querySelectorAll('.tab')].find(t =>
+      t.getAttribute('onclick') && t.getAttribute('onclick').includes("'" + id + "'")
+    );
+    if (match) match.classList.add('active');
+  }
+  ['tab-skill','tab-agents','tab-logic','tab-eval','tab-log'].forEach(t => {
+    const el2 = document.getElementById(t);
+    if (el2) el2.style.display = (t === 'tab-' + id) ? 'block' : 'none';
+  });
+  // Update panel subtitle to reflect active tab
+  const subtitleMap = {
+    skill:   'SKILL.MD · LIVE PREVIEW',
+    agents:  'AGENTS.MD · ORCHESTRATION',
+    logic:   'LOGIC COMPONENTS · DETERMINISTIC',
+    eval:    'EVAL RUBRIC · LLM JUDGE',
+    log:     'AUDIT TRAIL · SESSION LOG',
+  };
+  const sub = document.getElementById('panel-sub');
+  if (sub) sub.textContent = subtitleMap[id] || 'OUTPUT PREVIEW';
+}
+
+// ── Sync logic chips to feature flag toggles ──────────────────────────────────
+function syncLogicChips() {
+  const map = {
+    'ff-router':    'lc-router',
+    'ff-sequence':  'lc-seq',
+    'ff-gate':      'lc-gate',
+    'ff-datamap':   'lc-datamap',
+    'ff-errpolicy': 'lc-errpol',
+  };
+  Object.entries(map).forEach(([ffId, chipId]) => {
+    const ff   = document.getElementById(ffId);
+    const chip = document.getElementById(chipId);
+    if (ff && chip) chip.classList.toggle('active', ff.checked);
   });
 }
 
+// Attach listeners to the 5 logic feature-flag checkboxes
+['ff-router','ff-sequence','ff-gate','ff-datamap','ff-errpolicy'].forEach(id => {
+  const el = document.getElementById(id);
+  if (el) el.addEventListener('change', syncLogicChips);
+});
+
 function switchView(view) {
-  const msgs = { templates:'Templates Library (coming soon)', skills:'Skills Registry (coming soon)', evals:'Eval Framework — see EVAL tab →', audit:'Audit Trail — see LOG tab →' };
-  notify(msgs[view] || view);
-  if (view === 'evals') switchTab(document.querySelectorAll('.tab')[2], 'eval');
-  if (view === 'audit') switchTab(document.querySelectorAll('.tab')[3], 'log');
+  // Highlight the clicked sidebar nav item using data-view attribute
+  document.querySelectorAll('.nav-item[data-view]').forEach(n => n.classList.remove('active'));
+  const clicked = document.querySelector(`.nav-item[data-view="${view}"]`);
+  if (clicked) clicked.classList.add('active');
+
+  // Tab order: 0=skill, 1=agents, 2=logic, 3=eval, 4=log
+  const tabs = document.querySelectorAll('.tab');
+
+  if (view === 'evals') {
+    if (tabs[3]) switchTab(tabs[3], 'eval');
+    document.querySelector('.panel-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+    notify('Eval Framework — LLM Judge rubric now active in Output Preview');
+
+  } else if (view === 'audit') {
+    if (tabs[4]) switchTab(tabs[4], 'log');
+    document.querySelector('.panel-body')?.scrollTo({ top: 0, behavior: 'smooth' });
+    notify('Audit Trail — session log now active in Output Preview');
+
+  } else if (view === 'templates') {
+    // Scroll canvas to template grid
+    const tplGrid = document.getElementById('templates-grid');
+    if (tplGrid) {
+      tplGrid.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      // Briefly highlight the templates card
+      const card = tplGrid.closest('.card');
+      if (card) {
+        card.style.borderColor = 'var(--accent)';
+        card.style.transition = 'border-color 0.3s';
+        setTimeout(() => { card.style.borderColor = ''; }, 1500);
+      }
+    }
+    notify('Templates — select a template in the canvas to begin');
+
+  } else if (view === 'skills') {
+    // Scroll canvas to skills card and update badge count
+    const skillTags = document.getElementById('skill-tags');
+    if (skillTags) {
+      skillTags.closest('.card')?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      const card = skillTags.closest('.card');
+      if (card) {
+        card.style.borderColor = 'var(--accent)';
+        card.style.transition = 'border-color 0.3s';
+        setTimeout(() => { card.style.borderColor = ''; }, 1500);
+      }
+      // Update badge with live count
+      const count = document.querySelectorAll('.stag').length;
+      const badge = document.getElementById('skills-badge');
+      if (badge) badge.textContent = count;
+    }
+    notify('Skills Registry — ' + document.querySelectorAll('.stag').length + ' skills loaded');
+  }
 }
 
 // ══════════════ VALIDATE ══════════════
 function doValidate() {
   const name = document.getElementById('agent-name').value.trim();
-  const uc = document.getElementById('use-case').value.trim();
+  const uc   = document.getElementById('use-case').value.trim();
   const items = [];
-  if (name) items.push({ok:true,msg:`<strong>Agent name:</strong> "${name}" — valid`});
-  else items.push({ok:false,warn:true,msg:`<strong>Agent name</strong> is required`});
-  if (uc) items.push({ok:true,msg:`<strong>Use case:</strong> ${uc.length} characters — sufficient`});
-  else items.push({ok:false,warn:true,msg:`<strong>Use case</strong> description is required`});
-  if (S.template) items.push({ok:true,msg:`<strong>Template:</strong> ${TEMPLATES[S.template].name} — selected`});
-  else items.push({ok:false,warn:true,msg:`<strong>Template</strong> not selected`});
-  items.push({ok:true,msg:`<strong>Reference files:</strong> ${S.files.length} loaded`});
-  items.push({ok:true,msg:`<strong>Skills:</strong> ${document.querySelectorAll('.stag').length} auto-generated`});
-  if (document.getElementById('ff-sandbox').checked) items.push({ok:true,msg:`<strong>Sandbox:</strong> Docker/gVisor isolation enabled`});
-  if (document.getElementById('ff-judge').checked) items.push({ok:true,msg:`<strong>LLM Judge:</strong> eval rubric configured`});
+
+  // ── Core fields ────────────────────────────────────────────────────────
+  if (name) items.push({ok:true, msg:`<strong>Agent name:</strong> "${name}" — valid`});
+  else       items.push({ok:false,warn:true, msg:`<strong>Agent name</strong> is required`});
+
+  if (uc)   items.push({ok:true, msg:`<strong>Use case:</strong> ${uc.length} characters — sufficient`});
+  else       items.push({ok:false,warn:true, msg:`<strong>Use case</strong> description is required`});
+
+  if (S.template) items.push({ok:true, msg:`<strong>Template:</strong> ${TEMPLATES[S.template].name} — selected`});
+  else             items.push({ok:false,warn:true, msg:`<strong>Template</strong> not selected`});
+
+  items.push({ok:true, msg:`<strong>Reference files:</strong> ${S.files.length} loaded`});
+  items.push({ok:true, msg:`<strong>Skills:</strong> ${document.querySelectorAll('.stag').length} auto-generated`});
+
+  // ── Safety features ────────────────────────────────────────────────────
+  if (document.getElementById('ff-sandbox').checked)
+    items.push({ok:true, msg:`<strong>Sandbox:</strong> Docker/gVisor isolation enabled`});
+  if (document.getElementById('ff-judge').checked)
+    items.push({ok:true, msg:`<strong>LLM Judge:</strong> eval rubric configured`});
+  if (document.getElementById('ff-audit').checked)
+    items.push({ok:true, msg:`<strong>Audit trail:</strong> append-only event logging enabled`});
+
+  // ── Logic components ───────────────────────────────────────────────────
+  const logicFlags = [
+    { id:'ff-router',    label:'ROUTER.md',      desc:'Deterministic pre-LLM routing' },
+    { id:'ff-sequence',  label:'SEQUENCE.md',    desc:'Batch iterator controller' },
+    { id:'ff-gate',      label:'GATE.md',        desc:'Durable HITL checkpoint' },
+    { id:'ff-datamap',   label:'DATA_MAP.md',    desc:'Cross-skill field mapper' },
+    { id:'ff-errpolicy', label:'ERROR_POLICY.md',desc:'Retry & circuit breaker' },
+  ];
+  const enabledLogic = logicFlags.filter(f => document.getElementById(f.id)?.checked);
+  const disabledLogic = logicFlags.filter(f => !document.getElementById(f.id)?.checked);
+
+  if (enabledLogic.length) {
+    items.push({ok:true, msg:`<strong>Logic components enabled:</strong> ${enabledLogic.map(f=>f.label).join(', ')}`});
+  }
+  if (disabledLogic.length) {
+    items.push({ok:true, msg:`<strong>Logic components off:</strong> ${disabledLogic.map(f=>f.label).join(', ')} — enable in Feature Flags if needed`});
+  }
+
+  // ── HITL cross-check: gate should be on if hitl is on ──────────────────
+  const hitlOn = document.getElementById('ff-hitl')?.checked;
+  const gateOn = document.getElementById('ff-gate')?.checked;
+  if (hitlOn && !gateOn) {
+    items.push({ok:false, warn:true, msg:`<strong>Recommendation:</strong> HITL is enabled but GATE.md is off — enable GATE for durable approval state`});
+  }
+
+  // ── Routing: if router on, warn if no template selected ────────────────
+  const routerOn = document.getElementById('ff-router')?.checked;
+  if (routerOn && !S.template) {
+    items.push({ok:false, warn:true, msg:`<strong>ROUTER.md:</strong> deterministic routing enabled but no template selected — routing targets may be undefined`});
+  }
+
   const allOk = items.every(i => i.ok);
   const bodyHtml = items.map(i => `
     <div class="val-item ${i.ok ? 'val-ok' : i.warn ? 'val-warn' : 'val-err'}">
@@ -1496,8 +1874,9 @@ function doValidate() {
       <span class="val-text">${i.msg}</span>
     </div>
   `).join('');
+
   showModal('Validation Report', allOk ? 'ALL CHECKS PASSED · READY TO BUILD' : 'SOME ISSUES FOUND', bodyHtml, false, null, false);
-  log(`Validation run · ${allOk ? 'passed' : 'warnings found'}`, allOk ? 'OK' : 'WARN');
+  log(`Validation run · ${allOk ? 'passed' : 'warnings found'} · ${enabledLogic.length} logic components active`, allOk ? 'OK' : 'WARN');
 }
 
 // ══════════════ GUARDRAILS MODAL ══════════════
@@ -1628,7 +2007,18 @@ function showBuildCompleteModal(name) {
     {name:'README.md',          size:'2.6 KB', color:'var(--text3)',   ext:'MD'},
   ];
 
-  // ── Separate uploaded refs by category ─────────────────────────────────
+  // ── Logic component files (enabled ones only) ───────────────────────────
+  const logicMap = [
+    { ffId:'ff-router',    name:'logic/ROUTER.md',              size:'3.8 KB', color:'var(--cyan)',    ext:'MD', icon:'◈' },
+    { ffId:'ff-sequence',  name:'logic/SEQUENCE.md',            size:'4.1 KB', color:'var(--amber)',   ext:'MD', icon:'⟳' },
+    { ffId:'ff-gate',      name:'logic/GATE.md',                size:'3.6 KB', color:'var(--red)',     ext:'MD', icon:'🔐' },
+    { ffId:'ff-datamap',   name:'logic/DATA_MAP.md',            size:'3.2 KB', color:'var(--green)',   ext:'MD', icon:'⇄' },
+    { ffId:'ff-errpolicy', name:'logic/ERROR_POLICY.md',        size:'4.4 KB', color:'var(--accent2)', ext:'MD', icon:'⚡' },
+  ];
+  const enabledLogic = logicMap.filter(l => document.getElementById(l.ffId)?.checked);
+  enabledLogic.push({ name:'logic/routing-manifest.json', size:'2.1 KB', color:'var(--cyan)', ext:'JSON', icon:'{}' });
+
+  // ── Ref files by category ───────────────────────────────────────────────
   const refText = [], refDoc = [], refCode = [];
   S.files.forEach(f => {
     const ext = f.name.split('.').pop().toLowerCase();
@@ -1639,12 +2029,12 @@ function showBuildCompleteModal(name) {
     if (meta.cat === 'code') refCode.push({name:`references/${f.name}`, ext:meta.label, color:'var(--amber)'});
   });
 
-  const totalFiles = coreFiles.length + S.files.length;
+  const totalFiles = coreFiles.length + enabledLogic.length + S.files.length;
 
   const chipHtml = (f) => `
     <div class="file-chip">
       <div class="file-chip-ext fc-md" style="font-size:7px">${f.ext}</div>
-      <span class="file-chip-name" style="color:${f.color}">${f.name}</span>
+      <span class="file-chip-name" style="color:${f.color}">${f.icon ? f.icon + ' ' : ''}${f.name}</span>
       <span class="file-chip-size">${f.size || ''}</span>
       <span class="badge badge-green" style="font-size:8px">✓</span>
     </div>`;
@@ -1662,6 +2052,7 @@ function showBuildCompleteModal(name) {
     `<div style="display:flex;flex-direction:column;gap:4px;max-height:55vh;overflow-y:auto;padding-right:4px">
       <div style="font-family:var(--mono);font-size:8px;color:var(--accent2);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">Core Agent Files (${coreFiles.length})</div>
       ${coreFiles.map(chipHtml).join('')}
+      ${sectionHtml('◈ Logic Components', enabledLogic, 'var(--cyan)')}
       ${sectionHtml('Text & Config References', refText, 'var(--cyan)')}
       ${sectionHtml('Document References', refDoc, 'var(--green)')}
       ${sectionHtml('Code References', refCode, 'var(--amber)')}
@@ -1669,6 +2060,7 @@ function showBuildCompleteModal(name) {
     true
   );
 }
+
 
 // ══════════════ DOWNLOAD ══════════════
 function downloadPackage() {
@@ -1961,9 +2353,13 @@ Generated by Ai-Agent Builder v1.0 on ${ts}
 | guardrails.md | Runtime safety layer configuration |
 | llm-judge.md | LLM-as-a-Judge evaluation rubric |
 | audit-trails.md | Audit event schema and retention policy |
-| governance.md | Governance and compliance policies |
-| permissions.md | Permission scopes and RBAC config |
-| versioning.md | Versioning manifest and changelog |
+| logic/ROUTER.md | Deterministic pre-LLM routing rules |
+| logic/SEQUENCE.md | Batch iterator controller |
+| logic/GATE.md | HITL durable checkpoint |
+| logic/DATA_MAP.md | Cross-skill JSON field mapper |
+| logic/ERROR_POLICY.md | Retry, fallback, circuit breaker |
+| logic/routing-manifest.json | Compiled rule index for runner |
+| README.md | This file |
 
 ## Template: ${T.name}
 **Pattern**: ${T.pattern}
@@ -1972,10 +2368,16 @@ Generated by Ai-Agent Builder v1.0 on ${ts}
 ## Deployment
 
 1. Place all .md files in your agent workspace root
-2. Put skill files in .agents/skills/
-3. Configure your LLM client to use the discovery → execution → orchestration prompts
-4. Set environment variables per permissions.md
-5. Run eval golden set before going live
+2. Place logic/ files in your agent logic/ directory
+3. Put skill files in .agents/skills/
+4. Configure your LLM client to use the discovery → execution → orchestration prompts
+5. Set environment variables per permissions.md
+6. Run eval golden set before going live
+
+## Logic Components
+This package includes 5 deterministic logic components (logic/ directory).
+These are Markdown definitions interpreted by your runner (CLI, CI/CD, Claude Code).
+The builder stays backend-less; the runner provides the execution engine.
 
 ## Architecture
 ${T.pipelineNodes.join(' → ')}
@@ -1984,16 +2386,288 @@ ${T.pipelineNodes.join(' → ')}
 *Built with Ai-Agent Builder · agentskills.io standard*
 `;
 
-  // Download primary SKILL.md
-  downloadText(`${slug}-SKILL.md`, SKILL_MD);
-  setTimeout(() => downloadText(`${slug}-AGENTS.md`, AGENTS_MD), 200);
-  setTimeout(() => downloadText(`${slug}-guardrails.md`, GUARDRAILS_MD), 400);
-  setTimeout(() => downloadText(`${slug}-llm-judge.md`, JUDGE_MD), 600);
-  setTimeout(() => downloadText(`${slug}-audit-trails.md`, AUDIT_MD), 800);
-  setTimeout(() => downloadText(`${slug}-README.md`, README_MD), 1000);
+  // ── Build logic component file content ───────────────────────────────────
+  const routerEnabled   = document.getElementById('ff-router')?.checked;
+  const sequenceEnabled = document.getElementById('ff-sequence')?.checked;
+  const gateEnabled     = document.getElementById('ff-gate')?.checked;
+  const dataMapEnabled  = document.getElementById('ff-datamap')?.checked;
+  const errPolicyEnabled= document.getElementById('ff-errpolicy')?.checked;
 
-  notify('Downloading 6 files…');
-  log(`Package downloaded: ${slug}-agent-v1.0`, 'OK');
+  const ROUTER_MD = `---
+name: router
+spec_version: 1.0.0
+component_type: logic-gate
+routing_strategy: deterministic
+evaluation_order: top-down-first-match
+default_fallback: general-assistant
+on_no_match: hitl-gate
+generated: ${ts}
+---
+
+# Router — Deterministic Execution Controller
+
+## Execution Rules
+| Priority | Match Condition | Logic Type | Target Skill |
+|:---|:---|:---|:---|
+| 1 | $.security_score < 0.5 | JSON_PATH | security-audit.md |
+| 2 | $.severity == "CRITICAL" | JSON_PATH | incident-response.md |
+| 3 | ^FIX-[\\d]+|^INC-[\\d]+ | REGEX | incident-response.md |
+| 4 | ^(feat|fix|chore)\\(.+\\): | REGEX | code-review.md |
+| 5 | ["sprint","backlog","story"] | KEYWORD_ANY | sprint-planner.md |
+| 6 | ["audit","cve","owasp","vuln"] | KEYWORD_ANY | security-audit.md |
+| 7 | \\.(js|ts|py|cpp)$ | REGEX | code-review.md |
+| 8 | \\.(pdf|docx|doc|pptx)$ | REGEX | rag-retrieval.md |
+| 9 | \\.(csv|json|yaml)$ | REGEX | data-validator.md |
+
+## Evaluation Logic
+1. Sanitize input to JSON
+2. Evaluate rules top-down — first match wins
+3. On match: halt evaluation, log to audit trail, pass payload to target
+4. On no match: route to hitl-gate
+
+## Constraints
+- Rules evaluated in declared order — no parallel evaluation
+- LLM MUST NOT override a routing decision
+- Every routing event MUST produce an audit trail entry
+- Target skills MUST exist in .agents/skills/
+
+## References
+- ./references/guardrails.md
+- ./references/audit-trails.md
+- ./logic/routing-manifest.json
+`;
+
+  const SEQUENCE_MD = `---
+name: sequence
+spec_version: 1.0.0
+component_type: iterator
+execution_mode: sequential
+max_concurrency: 5
+max_items: 1000
+item_timeout_seconds: 120
+on_item_error: continue
+retry_count: 2
+retry_backoff_seconds: 5
+checkpoint_enabled: true
+checkpoint_interval: 10
+generated: ${ts}
+---
+
+# Sequence — Iterator & Batch Controller
+
+Process arrays item-by-item with a clean isolated context window per item.
+Prevents hallucination and item-skipping in bulk operations.
+
+## Algorithm
+1. Validate items[] is non-empty and <= max_items
+2. For each item: build isolated context (NO previous results)
+3. Invoke target_skill with isolated context
+4. On success: append to results[], checkpoint every N items
+5. On failure: retry with backoff; if exhausted and continue mode, log to failed[]
+6. Return BatchResult with succeeded, failed, checkpoint_file
+
+## Constraints
+- Each item MUST receive clean, isolated context — no cross-contamination
+- Batch size > max_items MUST be rejected before execution starts
+- partial_results_on_halt: always return completed work
+
+## References
+- ./references/audit-trails.md
+- ./.checkpoints/
+`;
+
+  const GATE_MD = `---
+name: gate
+spec_version: 1.0.0
+component_type: hitl-checkpoint
+timeout_hours: 24
+on_timeout: auto_reject
+require_reason: true
+allow_modification: true
+min_approvers: 1
+notification_channel: slack
+generated: ${ts}
+---
+
+# Gate — Human-in-the-Loop Checkpoint
+
+Durable wait state persisted to .gates/{uuid}.json.
+Survives process restarts. Requires authenticated approval before execution resumes.
+
+## States
+INACTIVE → PENDING → APPROVED → EXECUTING
+                   ↘ REJECTED → STOPPED
+                   ↘ MODIFIED → EXECUTING (with changes)
+                   ↘ TIMED_OUT → auto_reject
+
+## Callback URL Contract
+POST { gate_id, resolution, approver, reason, signature }
+Runner MUST verify HMAC-SHA256 signature before accepting.
+
+## Constraints
+- Gate state MUST be persisted to disk (not memory)
+- Runner MUST NOT resume without valid authenticated resolution
+- min_approvers >= 1 — self-approval never permitted
+- Rejected actions recorded in MEMORIES.md
+
+## References
+- ./references/audit-trails.md
+- ./references/governance.md
+- ./references/permissions.md
+- ./.gates/
+`;
+
+  const DATAMAP_MD = `---
+name: data-map
+spec_version: 1.0.0
+component_type: data-mapper
+source_skill: ${slug}-agent
+target_skill: next-skill
+on_mapping_error: halt
+generated: ${ts}
+---
+
+# Data Map — Cross-Skill Field Mapper
+
+Explicit JSON field mapping between skill output and next skill input.
+Eliminates LLM assumption about how to wire context between skills.
+
+## Mapping Syntax
+source:    JSONPath into the OUTPUT of source skill
+target:    JSONPath into the INPUT of target skill
+type:      Expected type (string|number|boolean|array|object)
+transform: Optional pure JS expression on \`value\`
+default:   Value if source resolves to null
+required:  If true, mapping failure halts execution
+
+## Example Mappings
+\`\`\`yaml
+- source:   "$.findings[?(@.severity=='CRITICAL')]"
+  target:   "$.audit_input.flagged_findings"
+  type:     array
+  required: true
+
+- source:   "$.quality_score"
+  target:   "$.audit_input.pre_review_score"
+  type:     number
+  default:  0
+\`\`\`
+
+## Constraints
+- Transform expressions are pure functions — no I/O, no fetch, no eval
+- Required mapping failures MUST halt execution
+- File named: {source}--to--{target}.map.md
+
+## References
+- ./logic/routing-manifest.json
+- ./references/audit-trails.md
+`;
+
+  const ERRPOLICY_MD = `---
+name: error-policy
+spec_version: 1.0.0
+component_type: error-handler
+generated: ${ts}
+---
+
+# Error Policy — Multi-Step Recovery & Retry
+
+## Error Levels
+L0 TRANSIENT  → retry 1-2x immediately (429, 502/503/504)
+L1 RETRYABLE  → exponential backoff 3s→9s→27s (LLM 500, DB timeout)
+L2 SKILL_FAIL → invoke fallback_skill chain
+L3 DEGRADED   → switch to degraded mode (e.g. reasoning-only)
+L4 FATAL      → halt · alert · return partial results (auth fail, kill switch)
+
+## Circuit Breaker
+\`\`\`
+CLOSED → (5 failures) → OPEN
+OPEN   → (30s probe)  → HALF-OPEN
+HALF-OPEN → (2 ok)    → CLOSED
+\`\`\`
+Scoped per-skill. OPEN circuit fails fast — no LLM invocation.
+
+## Fallback Chains
+rag-retrieval.md:    reasoning-only → gate
+security-audit.md:   llm-only-security-review → gate
+code-review.md:      basic-lint-only
+
+## Constraints
+- L4 FATAL errors MUST halt — never retry or degrade
+- Circuit state persisted per-skill across restarts
+- partial_results_on_halt: always return completed work
+- MEMORIES.md records recurring failures for cross-session learning
+
+## References
+- ./references/audit-trails.md
+- ./references/governance.md
+- ./MEMORIES.md
+- ./.circuit-breaker/
+`;
+
+  const MANIFEST_JSON = JSON.stringify({
+    manifest_version: '1.0.0',
+    generated: ts,
+    agent_name: name,
+    template: T.name,
+    routers: [{
+      id: 'default-router',
+      file: './logic/ROUTER.md',
+      routing_strategy: 'deterministic',
+      default_fallback: 'general-assistant',
+      on_no_match: 'hitl-gate',
+      rules: [
+        { priority:1, condition:'$.security_score < 0.5', logic_type:'JSON_PATH',    target_skill:'security-audit.md' },
+        { priority:2, condition:'$.severity == "CRITICAL"',logic_type:'JSON_PATH',   target_skill:'incident-response.md' },
+        { priority:3, condition:'^FIX-[\\d]+|^INC-[\\d]+',logic_type:'REGEX',       target_skill:'incident-response.md' },
+        { priority:4, condition:'^(feat|fix|chore)\\(.+\\):', logic_type:'REGEX',   target_skill:'code-review.md' },
+        { priority:5, condition:['sprint','backlog','story'], logic_type:'KEYWORD_ANY', target_skill:'sprint-planner.md' },
+        { priority:6, condition:['audit','cve','owasp','vuln'], logic_type:'KEYWORD_ANY', target_skill:'security-audit.md' },
+        { priority:7, condition:'\\.(js|ts|py|cpp)$',      logic_type:'REGEX',       target_skill:'code-review.md' },
+        { priority:8, condition:'\\.(pdf|docx|doc|pptx)$', logic_type:'REGEX',       target_skill:'rag-retrieval.md' },
+        { priority:9, condition:'\\.(csv|json|yaml)$',     logic_type:'REGEX',       target_skill:'data-validator.md' },
+      ]
+    }],
+    skill_registry: ['code-review.md','security-audit.md','sprint-planner.md','data-validator.md','rag-retrieval.md','incident-response.md'],
+    logic_components: [
+      { type:'router',       file:'./logic/ROUTER.md',       active: routerEnabled    },
+      { type:'iterator',     file:'./logic/SEQUENCE.md',     active: sequenceEnabled  },
+      { type:'hitl-gate',    file:'./logic/GATE.md',         active: gateEnabled      },
+      { type:'data-mapper',  file:'./logic/DATA_MAP.md',     active: dataMapEnabled   },
+      { type:'error-policy', file:'./logic/ERROR_POLICY.md', active: errPolicyEnabled },
+    ]
+  }, null, 2);
+
+  // ── Staggered downloads ────────────────────────────────────────────────────
+  let delay = 0;
+  const dl = (name, content, type='text/markdown') => {
+    setTimeout(() => {
+      const blob = new Blob([content], { type });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url; a.download = name; a.click();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    }, delay);
+    delay += 200;
+  };
+
+  dl(`${slug}-SKILL.md`,       SKILL_MD);
+  dl(`${slug}-AGENTS.md`,      AGENTS_MD);
+  dl(`${slug}-guardrails.md`,  GUARDRAILS_MD);
+  dl(`${slug}-llm-judge.md`,   JUDGE_MD);
+  dl(`${slug}-audit-trails.md`,AUDIT_MD);
+  dl(`${slug}-README.md`,      README_MD);
+  if (routerEnabled)    dl(`${slug}-ROUTER.md`,       ROUTER_MD);
+  if (sequenceEnabled)  dl(`${slug}-SEQUENCE.md`,     SEQUENCE_MD);
+  if (gateEnabled)      dl(`${slug}-GATE.md`,         GATE_MD);
+  if (dataMapEnabled)   dl(`${slug}-DATA_MAP.md`,     DATAMAP_MD);
+  if (errPolicyEnabled) dl(`${slug}-ERROR_POLICY.md`, ERRPOLICY_MD);
+  dl(`${slug}-routing-manifest.json`, MANIFEST_JSON, 'application/json');
+
+  const enabledLogic = [routerEnabled,sequenceEnabled,gateEnabled,dataMapEnabled,errPolicyEnabled].filter(Boolean).length;
+  const totalFiles = 6 + enabledLogic + 1; // core + enabled logic + manifest
+  notify(`Downloading ${totalFiles} files…`);
+  log(`Package downloaded: ${slug}-agent-v1.0 · ${totalFiles} files (${enabledLogic} logic components)`, 'OK');
   closeModal();
 }
 
