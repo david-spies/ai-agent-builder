@@ -541,3 +541,281 @@ describe('Red Team Probe Coverage', () => {
     expect(readme).toContain('permission');
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE 8: Logic Component Files
+// ══════════════════════════════════════════════════════════════════════════
+describe('Logic Component Files', () => {
+
+  describe('All 5 logic component files exist', () => {
+    const logicFiles = [
+      'logic/ROUTER.md',
+      'logic/SEQUENCE.md',
+      'logic/GATE.md',
+      'logic/DATA_MAP.md',
+      'logic/ERROR_POLICY.md',
+      'logic/routing-manifest.json',
+    ];
+    test.each(logicFiles)('%s exists', (file) => {
+      expect(fileExists(file)).toBe(true);
+    });
+  });
+
+  describe('ROUTER.md structure', () => {
+    let content;
+    beforeAll(() => { content = readFile('logic/ROUTER.md'); });
+
+    test('has component_type: logic-gate in frontmatter', () => {
+      expect(content).toMatch(/^component_type: logic-gate/m);
+    });
+    test('has routing_strategy: deterministic', () => {
+      expect(content).toMatch(/^routing_strategy: deterministic/m);
+    });
+    test('has Execution Rules table', () => {
+      expect(content).toContain('## Execution Rules');
+    });
+    test('has default_fallback defined', () => {
+      expect(content).toMatch(/^default_fallback:/m);
+    });
+    test('has JSON_PATH rule', () => {
+      expect(content).toContain('JSON_PATH');
+    });
+    test('has REGEX rule', () => {
+      expect(content).toContain('REGEX');
+    });
+    test('has KEYWORD_ANY rule', () => {
+      expect(content).toContain('KEYWORD_ANY');
+    });
+    test('has Evaluation Logic section', () => {
+      expect(content).toContain('## Evaluation Logic');
+    });
+    test('has Constraints section', () => {
+      expect(content).toContain('## Constraints');
+    });
+    test('references audit-trails.md', () => {
+      expect(content).toContain('audit-trails.md');
+    });
+    test('no hardcoded credentials', () => {
+      expect(content).not.toMatch(/AKIA[0-9A-Z]{16}/);
+      expect(content).not.toMatch(/gh[pousr]_[A-Za-z0-9_]{36}/);
+    });
+  });
+
+  describe('SEQUENCE.md structure', () => {
+    let content;
+    beforeAll(() => { content = readFile('logic/SEQUENCE.md'); });
+
+    test('has component_type: iterator', () => {
+      expect(content).toMatch(/^component_type: iterator/m);
+    });
+    test('has max_items limit', () => {
+      expect(content).toMatch(/^max_items:/m);
+    });
+    test('has on_item_error policy', () => {
+      expect(content).toMatch(/^on_item_error:/m);
+    });
+    test('has checkpoint_enabled', () => {
+      expect(content).toMatch(/^checkpoint_enabled:/m);
+    });
+    test('has Output Schema section', () => {
+      expect(content).toContain('Output Schema');
+    });
+    test('mentions clean isolated context', () => {
+      expect(content.toLowerCase()).toContain('isolated context');
+    });
+  });
+
+  describe('GATE.md structure', () => {
+    let content;
+    beforeAll(() => { content = readFile('logic/GATE.md'); });
+
+    test('has component_type: hitl-checkpoint', () => {
+      expect(content).toMatch(/^component_type: hitl-checkpoint/m);
+    });
+    test('has HMAC signature verification', () => {
+      expect(content.toLowerCase()).toContain('hmac');
+    });
+    test('has min_approvers field', () => {
+      expect(content).toMatch(/^min_approvers:/m);
+    });
+    test('has gate states (PENDING, APPROVED, REJECTED)', () => {
+      expect(content).toContain('PENDING');
+      expect(content).toContain('APPROVED');
+      expect(content).toContain('REJECTED');
+    });
+    test('has on_timeout policy', () => {
+      expect(content).toMatch(/^on_timeout:/m);
+    });
+    test('auto_approve on timeout is warned against or not set as default', () => {
+      // auto_approve should not be the DEFAULT - it should be auto_reject
+      const match = content.match(/^on_timeout:\s*(.+)/m);
+      if (match) {
+        expect(match[1].trim()).not.toBe('auto_approve');
+      }
+    });
+    test('requires reason for approval', () => {
+      expect(content).toMatch(/require_reason:\s*true/m);
+    });
+  });
+
+  describe('DATA_MAP.md structure', () => {
+    let content;
+    beforeAll(() => { content = readFile('logic/DATA_MAP.md'); });
+
+    test('has component_type: data-mapper', () => {
+      expect(content).toMatch(/^component_type: data-mapper/m);
+    });
+    test('has on_mapping_error policy', () => {
+      expect(content).toContain('on_mapping_error');
+    });
+    test('has mapping syntax documentation', () => {
+      expect(content).toContain('source');
+      expect(content).toContain('target');
+      expect(content).toContain('type');
+    });
+    test('mentions JSONPath syntax', () => {
+      expect(content.toLowerCase()).toContain('jsonpath');
+    });
+    test('documents transform expression sandbox restrictions', () => {
+      expect(content.toLowerCase()).toContain('sandbox') ||
+      expect(content.toLowerCase()).toContain('permitted');
+    });
+  });
+
+  describe('ERROR_POLICY.md structure', () => {
+    let content;
+    beforeAll(() => { content = readFile('logic/ERROR_POLICY.md'); });
+
+    test('has component_type: error-handler', () => {
+      expect(content).toMatch(/^component_type: error-handler/m);
+    });
+    test('defines L4 FATAL level', () => {
+      expect(content).toContain('FATAL') || expect(content).toContain('Level 4');
+    });
+    test('has circuit breaker section', () => {
+      expect(content.toLowerCase()).toContain('circuit');
+    });
+    test('mentions partial_results_on_halt', () => {
+      expect(content).toContain('partial_results');
+    });
+    test('has fallback chains', () => {
+      expect(content.toLowerCase()).toContain('fallback');
+    });
+    test('mentions MEMORIES.md for error tracking', () => {
+      expect(content).toContain('MEMORIES.md');
+    });
+  });
+
+  describe('routing-manifest.json structure', () => {
+    let data;
+    beforeAll(() => {
+      data = JSON.parse(readFile('logic/routing-manifest.json'));
+    });
+
+    test('is valid JSON', () => {
+      expect(data).toBeDefined();
+    });
+    test('has manifest_version field', () => {
+      expect(data).toHaveProperty('manifest_version');
+    });
+    test('has routers array', () => {
+      expect(data).toHaveProperty('routers');
+      expect(Array.isArray(data.routers)).toBe(true);
+    });
+    test('has skill_registry array', () => {
+      expect(data).toHaveProperty('skill_registry');
+      expect(Array.isArray(data.skill_registry)).toBe(true);
+      expect(data.skill_registry.length).toBeGreaterThan(0);
+    });
+    test('has logic_components array', () => {
+      expect(data).toHaveProperty('logic_components');
+      expect(Array.isArray(data.logic_components)).toBe(true);
+      expect(data.logic_components.length).toBe(5);
+    });
+    test('logic_components have required fields', () => {
+      data.logic_components.forEach(lc => {
+        expect(lc).toHaveProperty('type');
+        expect(lc).toHaveProperty('file');
+        expect(lc).toHaveProperty('active');
+        expect(typeof lc.active).toBe('boolean');
+      });
+    });
+    test('all 5 logic component types are registered', () => {
+      const types = data.logic_components.map(lc => lc.type);
+      ['router','iterator','hitl-gate','data-mapper','error-policy'].forEach(t => {
+        expect(types).toContain(t);
+      });
+    });
+    test('router rules have priorities', () => {
+      if (data.routers.length > 0) {
+        data.routers[0].rules.forEach(rule => {
+          expect(rule).toHaveProperty('priority');
+          expect(typeof rule.priority).toBe('number');
+          expect(rule).toHaveProperty('target_skill');
+          expect(rule).toHaveProperty('logic_type');
+        });
+      }
+    });
+    test('router rule priorities are sequential', () => {
+      if (data.routers.length > 0 && data.routers[0].rules.length > 0) {
+        const priorities = data.routers[0].rules.map(r => r.priority).sort((a,b)=>a-b);
+        priorities.forEach((p, i) => expect(p).toBe(i + 1));
+      }
+    });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE 9: Logic + Skill Cross-Referential Integrity
+// ══════════════════════════════════════════════════════════════════════════
+describe('Logic ↔ Skill Cross-Referential Integrity', () => {
+
+  test('routing-manifest skill_registry matches .agents/skills/ directory', () => {
+    const data = JSON.parse(readFile('logic/routing-manifest.json'));
+    const skillsDir = path.resolve(ROOT, '.agents/skills');
+    if (!fs.existsSync(skillsDir)) return; // skip if no skills dir
+    const actualSkills = fs.readdirSync(skillsDir).filter(f => f.endsWith('.md'));
+    data.skill_registry.forEach(skill => {
+      expect(actualSkills).toContain(skill);
+    });
+  });
+
+  test('all ROUTER target skills exist in routing-manifest skill_registry', () => {
+    const data = JSON.parse(readFile('logic/routing-manifest.json'));
+    const registry = new Set(data.skill_registry);
+    const exceptions = new Set(['general-assistant', 'hitl-gate', 'reasoning-only.md']);
+    data.routers.forEach(router => {
+      router.rules.forEach(rule => {
+        const target = rule.target_skill;
+        if (!exceptions.has(target)) {
+          expect(registry.has(target)).toBe(true);
+        }
+      });
+    });
+  });
+
+  test('GATE.md references audit-trails.md', () => {
+    const gate = readFile('logic/GATE.md');
+    expect(gate).toContain('audit-trails.md');
+  });
+
+  test('ERROR_POLICY.md references MEMORIES.md', () => {
+    const ep = readFile('logic/ERROR_POLICY.md');
+    expect(ep).toContain('MEMORIES.md');
+  });
+
+  test('ROUTER.md references routing-manifest.json', () => {
+    const router = readFile('logic/ROUTER.md');
+    expect(router).toContain('routing-manifest.json');
+  });
+
+  test('AGENTS.md references logic/ directory', () => {
+    const agents = readFile('AGENTS.md');
+    expect(agents).toContain('logic/');
+  });
+
+  test('validate.sh checks for logic/ directory', () => {
+    const validate = readFile('scripts/validate.sh');
+    expect(validate.toLowerCase()).toContain('logic');
+  });
+});

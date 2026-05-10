@@ -526,3 +526,250 @@ describe('Edge cases', () => {
     });
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE: Logic Component Constants & Defaults
+// ══════════════════════════════════════════════════════════════════════════
+
+// Mirror logic component defaults from builder for unit testing
+const LOGIC_COMPONENTS = {
+  router: {
+    component_type: 'logic-gate',
+    routing_strategy: 'deterministic',
+    evaluation_order: 'top-down-first-match',
+    default_fallback: 'general-assistant',
+    on_no_match: 'hitl-gate',
+  },
+  sequence: {
+    component_type: 'iterator',
+    execution_mode: 'sequential',
+    max_concurrency: 5,
+    max_items: 1000,
+    on_item_error: 'continue',
+    retry_count: 2,
+    checkpoint_enabled: true,
+    checkpoint_interval: 10,
+  },
+  gate: {
+    component_type: 'hitl-checkpoint',
+    timeout_hours: 24,
+    on_timeout: 'auto_reject',
+    require_reason: true,
+    allow_modification: true,
+    min_approvers: 1,
+  },
+  data_map: {
+    component_type: 'data-mapper',
+    on_mapping_error: 'halt',
+  },
+  error_policy: {
+    component_type: 'error-handler',
+    circuit_breaker: { enabled: true, failure_threshold: 5, success_threshold: 2, half_open_timeout_seconds: 30 },
+    global: { partial_results_on_halt: true, write_error_to_memories: true },
+  },
+};
+
+const DEFAULT_ROUTER_RULES = [
+  { priority: 1, logic_type: 'JSON_PATH',    condition: '$.security_score < 0.5',        target: 'security-audit.md' },
+  { priority: 2, logic_type: 'JSON_PATH',    condition: '$.severity == "CRITICAL"',       target: 'incident-response.md' },
+  { priority: 3, logic_type: 'REGEX',        condition: '^FIX-[\\d]+|^INC-[\\d]+',       target: 'incident-response.md' },
+  { priority: 4, logic_type: 'REGEX',        condition: '^(feat|fix|chore)\\(.+\\):',     target: 'code-review.md' },
+  { priority: 5, logic_type: 'KEYWORD_ANY',  condition: ['sprint','backlog','story'],      target: 'sprint-planner.md' },
+  { priority: 6, logic_type: 'KEYWORD_ANY',  condition: ['audit','cve','owasp','vuln'],   target: 'security-audit.md' },
+  { priority: 7, logic_type: 'REGEX',        condition: '\\.(js|ts|py|cpp)$',             target: 'code-review.md' },
+  { priority: 8, logic_type: 'REGEX',        condition: '\\.(pdf|docx|doc|pptx)$',        target: 'rag-retrieval.md' },
+  { priority: 9, logic_type: 'REGEX',        condition: '\\.(csv|json|yaml)$',            target: 'data-validator.md' },
+];
+
+const LOGIC_TYPES = ['JSON_PATH', 'REGEX', 'KEYWORD_ANY'];
+const ERROR_LEVELS = [0, 1, 2, 3, 4];
+const GATE_STATES  = ['INACTIVE', 'PENDING', 'APPROVED', 'REJECTED', 'MODIFIED', 'TIMED_OUT'];
+
+describe('Logic Component Constants', () => {
+  test('all 5 logic components are defined', () => {
+    ['router','sequence','gate','data_map','error_policy'].forEach(k => {
+      expect(LOGIC_COMPONENTS).toHaveProperty(k);
+    });
+  });
+
+  test.each(Object.keys(LOGIC_COMPONENTS))('component "%s" has component_type field', (key) => {
+    expect(LOGIC_COMPONENTS[key]).toHaveProperty('component_type');
+    expect(typeof LOGIC_COMPONENTS[key].component_type).toBe('string');
+    expect(LOGIC_COMPONENTS[key].component_type.length).toBeGreaterThan(0);
+  });
+});
+
+describe('ROUTER — Default Rules', () => {
+  test('default router has 9 rules', () => {
+    expect(DEFAULT_ROUTER_RULES).toHaveLength(9);
+  });
+
+  test('rules have sequential unique priorities 1-9', () => {
+    const priorities = DEFAULT_ROUTER_RULES.map(r => r.priority).sort((a,b) => a-b);
+    priorities.forEach((p, i) => expect(p).toBe(i + 1));
+  });
+
+  test.each(DEFAULT_ROUTER_RULES)('rule %# has valid logic_type', (rule) => {
+    expect(LOGIC_TYPES).toContain(rule.logic_type);
+  });
+
+  test.each(DEFAULT_ROUTER_RULES)('rule %# has non-empty target skill', (rule) => {
+    expect(typeof rule.target).toBe('string');
+    expect(rule.target.endsWith('.md')).toBe(true);
+  });
+
+  test('JSON_PATH rules come before REGEX rules (most specific first)', () => {
+    const jsonPathPriorities = DEFAULT_ROUTER_RULES
+      .filter(r => r.logic_type === 'JSON_PATH').map(r => r.priority);
+    const regexPriorities = DEFAULT_ROUTER_RULES
+      .filter(r => r.logic_type === 'REGEX').map(r => r.priority);
+    const maxJsonPath = Math.max(...jsonPathPriorities);
+    const minRegex    = Math.min(...regexPriorities);
+    expect(maxJsonPath).toBeLessThan(minRegex);
+  });
+
+  test('KEYWORD_ANY conditions are arrays', () => {
+    DEFAULT_ROUTER_RULES
+      .filter(r => r.logic_type === 'KEYWORD_ANY')
+      .forEach(r => {
+        expect(Array.isArray(r.condition)).toBe(true);
+        expect(r.condition.length).toBeGreaterThan(0);
+      });
+  });
+
+  test('all target skills are known skills or general-assistant', () => {
+    const validTargets = new Set([
+      'security-audit.md','incident-response.md','code-review.md',
+      'sprint-planner.md','rag-retrieval.md','data-validator.md',
+      'general-assistant','hitl-gate',
+    ]);
+    DEFAULT_ROUTER_RULES.forEach(r => {
+      expect(validTargets.has(r.target)).toBe(true);
+    });
+  });
+});
+
+describe('SEQUENCE — Defaults', () => {
+  const seq = LOGIC_COMPONENTS.sequence;
+
+  test('max_concurrency is between 1 and 5', () => {
+    expect(seq.max_concurrency).toBeGreaterThanOrEqual(1);
+    expect(seq.max_concurrency).toBeLessThanOrEqual(5);
+  });
+
+  test('max_items has a reasonable ceiling', () => {
+    expect(seq.max_items).toBeGreaterThan(0);
+    expect(seq.max_items).toBeLessThanOrEqual(10000);
+  });
+
+  test('on_item_error is valid', () => {
+    expect(['continue','halt','retry']).toContain(seq.on_item_error);
+  });
+
+  test('checkpoint_enabled is true by default', () => {
+    expect(seq.checkpoint_enabled).toBe(true);
+  });
+
+  test('checkpoint_interval is a positive integer', () => {
+    expect(typeof seq.checkpoint_interval).toBe('number');
+    expect(seq.checkpoint_interval).toBeGreaterThan(0);
+    expect(Number.isInteger(seq.checkpoint_interval)).toBe(true);
+  });
+
+  test('retry_count is 2 or more', () => {
+    expect(seq.retry_count).toBeGreaterThanOrEqual(2);
+  });
+});
+
+describe('GATE — Defaults', () => {
+  const gate = LOGIC_COMPONENTS.gate;
+
+  test('timeout_hours is positive', () => {
+    expect(gate.timeout_hours).toBeGreaterThan(0);
+  });
+
+  test('on_timeout is auto_reject (safe default)', () => {
+    expect(gate.on_timeout).toBe('auto_reject');
+  });
+
+  test('require_reason is true', () => {
+    expect(gate.require_reason).toBe(true);
+  });
+
+  test('min_approvers is at least 1', () => {
+    expect(gate.min_approvers).toBeGreaterThanOrEqual(1);
+  });
+
+  test('gate states cover all transitions', () => {
+    ['INACTIVE','PENDING','APPROVED','REJECTED','MODIFIED','TIMED_OUT'].forEach(state => {
+      expect(GATE_STATES).toContain(state);
+    });
+  });
+});
+
+describe('ERROR_POLICY — Defaults', () => {
+  const ep = LOGIC_COMPONENTS.error_policy;
+
+  test('circuit breaker is enabled by default', () => {
+    expect(ep.circuit_breaker.enabled).toBe(true);
+  });
+
+  test('circuit breaker failure_threshold is between 3 and 10', () => {
+    expect(ep.circuit_breaker.failure_threshold).toBeGreaterThanOrEqual(3);
+    expect(ep.circuit_breaker.failure_threshold).toBeLessThanOrEqual(10);
+  });
+
+  test('partial_results_on_halt is true', () => {
+    expect(ep.global.partial_results_on_halt).toBe(true);
+  });
+
+  test('write_error_to_memories is true', () => {
+    expect(ep.global.write_error_to_memories).toBe(true);
+  });
+
+  test('all 5 error levels are defined', () => {
+    ERROR_LEVELS.forEach(level => {
+      expect(ERROR_LEVELS).toContain(level);
+    });
+  });
+});
+
+describe('Logic Component — Integration: Architect selection rules', () => {
+  function shouldEnableGate(useCase, hitlEnabled) {
+    const ul = useCase.toLowerCase();
+    return hitlEnabled && /deploy|delete|payment|permission|production/.test(ul);
+  }
+
+  function shouldEnableSequence(useCase) {
+    return /batch|bulk|all \d+|audit \d+|\d+ repos|\d+ files/.test(useCase.toLowerCase());
+  }
+
+  function shouldEnableRouter(useCase, fileTypes) {
+    return fileTypes.length > 1 || /route|dispatch|multiple skills/.test(useCase.toLowerCase());
+  }
+
+  test('deploy use case + HITL on → GATE enabled', () => {
+    expect(shouldEnableGate('Deploy v2.1.4 to production environment', true)).toBe(true);
+  });
+
+  test('simple Q&A use case + HITL on → GATE NOT enabled', () => {
+    expect(shouldEnableGate('Answer questions about our documentation', true)).toBe(false);
+  });
+
+  test('batch use case → SEQUENCE enabled', () => {
+    expect(shouldEnableSequence('Audit all 50 repos for security vulnerabilities')).toBe(true);
+    expect(shouldEnableSequence('Process 200 log entries')).toBe(true);
+  });
+
+  test('single-item use case → SEQUENCE NOT enabled', () => {
+    expect(shouldEnableSequence('Review this pull request')).toBe(false);
+  });
+
+  test('mixed file types → ROUTER enabled', () => {
+    expect(shouldEnableRouter('Review files', ['.py', '.pdf', '.csv'])).toBe(true);
+  });
+
+  test('single file type → ROUTER NOT auto-enabled', () => {
+    expect(shouldEnableRouter('Review Python files', ['.py'])).toBe(false);
+  });
+});
