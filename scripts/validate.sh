@@ -175,3 +175,81 @@ if [ "$STRICT" = "--strict" ] && [ "$WARNINGS" -gt 0 ]; then
 fi
 
 [ "$ERRORS" -eq 0 ] || exit 1
+
+# ── 7. Logic component validation ────────────────────────────────────────────
+log_info "Validating logic components..."
+
+LOGIC_DIR="${AGENT_DIR}/logic"
+
+if [ -d "$LOGIC_DIR" ]; then
+  log_ok "logic/ directory found"
+
+  # Check each enabled component has the right component_type
+  declare -A EXPECTED_TYPES=(
+    ["ROUTER.md"]="logic-gate"
+    ["SEQUENCE.md"]="iterator"
+    ["GATE.md"]="hitl-checkpoint"
+    ["DATA_MAP.md"]="data-mapper"
+    ["ERROR_POLICY.md"]="error-handler"
+  )
+
+  for file in "${!EXPECTED_TYPES[@]}"; do
+    filepath="${LOGIC_DIR}/${file}"
+    expected="${EXPECTED_TYPES[$file]}"
+    if [ -f "$filepath" ]; then
+      if grep -q "component_type: ${expected}" "$filepath"; then
+        log_ok "Logic component valid: ${file} (${expected})"
+      else
+        log_warn "Logic component ${file} missing component_type: ${expected}"
+      fi
+    fi
+  done
+
+  # Check routing-manifest.json is valid JSON
+  MANIFEST="${LOGIC_DIR}/routing-manifest.json"
+  if [ -f "$MANIFEST" ]; then
+    if python3 -c "import json,sys; json.load(open('${MANIFEST}'))" 2>/dev/null; then
+      log_ok "routing-manifest.json is valid JSON"
+    else
+      log_err "routing-manifest.json is invalid JSON"
+    fi
+
+    # Validate every target_skill in the manifest exists in .agents/skills/
+    SKILLS_DIR="${AGENT_DIR}/.agents/skills"
+    if [ -d "$SKILLS_DIR" ]; then
+      python3 -c "
+import json, os, sys
+manifest = json.load(open('${MANIFEST}'))
+skills_dir = '${SKILLS_DIR}'
+available = set(os.listdir(skills_dir))
+errors = []
+for router in manifest.get('routers', []):
+    for rule in router.get('rules', []):
+        target = rule.get('target_skill','')
+        if target and target not in available:
+            errors.append(f'ROUTER rule target not found in .agents/skills/: {target}')
+if errors:
+    for e in errors: print('ERROR:', e)
+    sys.exit(1)
+else:
+    print('OK: all ROUTER target skills exist')
+" && log_ok "All ROUTER target skills verified in .agents/skills/" \
+  || log_err "ROUTER.md references skills that do not exist — update .agents/skills/ or routing rules"
+    else
+      log_warn ".agents/skills/ directory not found — cannot validate ROUTER targets"
+    fi
+  fi
+
+  # Warn if GATE.md exists without HMAC mention
+  if [ -f "${LOGIC_DIR}/GATE.md" ]; then
+    if grep -qi "hmac\|signature" "${LOGIC_DIR}/GATE.md"; then
+      log_ok "GATE.md references HMAC signature verification"
+    else
+      log_warn "GATE.md does not mention HMAC — callback URL approvals may be insecure"
+    fi
+  fi
+
+else
+  log_info "No logic/ directory found — skipping logic component checks"
+  log_info "To add logic components, run the builder and enable them in Feature Flags"
+fi
