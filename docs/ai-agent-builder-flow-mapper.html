@@ -1,0 +1,1420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ai-Agent Builder — Architectural Flow Mapper</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400&family=Outfit:wght@300;400;500;600;700;800&display=swap');
+
+:root {
+  --ink: #0a0a12;
+  --ink2: #12121e;
+  --ink3: #1a1a28;
+  --wire: #22223a;
+  --wire2: #2e2e50;
+  --signal: #5b5ef4;
+  --signal2: #8b8ef8;
+  --signal3: #3a3dcc;
+  --go: #00e5a0;
+  --warn: #ffa842;
+  --stop: #ff4d6d;
+  --data: #00c8f0;
+  --dim: #3a3a5a;
+  --muted: #6a6a9a;
+  --ghost: #9898c8;
+  --bright: #e8e8ff;
+  --mono: 'Space Mono', monospace;
+  --sans: 'Outfit', sans-serif;
+  --glow-signal: 0 0 20px rgba(91,94,244,0.4);
+  --glow-go: 0 0 20px rgba(0,229,160,0.3);
+  --glow-data: 0 0 16px rgba(0,200,240,0.3);
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: var(--ink);
+  color: var(--bright);
+  font-family: var(--sans);
+  overflow: hidden;
+}
+
+/* ─── SCAN LINE OVERLAY ─── */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0,0,0,0.04) 2px,
+    rgba(0,0,0,0.04) 4px
+  );
+  pointer-events: none;
+  z-index: 1000;
+}
+
+/* ─── LAYOUT ─── */
+.shell {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  grid-template-rows: 52px 1fr;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ─── TOPBAR ─── */
+.topbar {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 0 20px;
+  background: var(--ink2);
+  border-bottom: 1px solid var(--wire);
+  z-index: 100;
+}
+
+.logo-mark {
+  width: 28px;
+  height: 28px;
+  background: var(--signal);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: -1px;
+  flex-shrink: 0;
+  box-shadow: var(--glow-signal);
+}
+
+.topbar-title {
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--bright);
+  letter-spacing: 0.3px;
+}
+
+.topbar-sub {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  letter-spacing: 1.5px;
+}
+
+.topbar-spacer { flex: 1; }
+
+.topbar-pill {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.8px;
+}
+
+.pill-signal { background: rgba(91,94,244,0.12); color: var(--signal2); border: 1px solid rgba(91,94,244,0.3); }
+.pill-go { background: rgba(0,229,160,0.1); color: var(--go); border: 1px solid rgba(0,229,160,0.25); }
+.pill-data { background: rgba(0,200,240,0.08); color: var(--data); border: 1px solid rgba(0,200,240,0.2); }
+
+.pulse { width: 5px; height: 5px; border-radius: 50%; background: currentColor; animation: blink 2s ease-in-out infinite; }
+@keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.2} }
+
+/* ─── SIDEBAR ─── */
+.sidebar {
+  background: var(--ink2);
+  border-right: 1px solid var(--wire);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.sidebar-section {
+  padding: 14px 14px 8px;
+  border-bottom: 1px solid var(--wire);
+}
+
+.sidebar-section:last-child { border-bottom: none; flex: 1; overflow-y: auto; }
+
+.section-head {
+  font-family: var(--mono);
+  font-size: 8px;
+  letter-spacing: 2px;
+  color: var(--dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* ─── FLOW LIST ─── */
+.flow-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.15s;
+  border: 1px solid transparent;
+  margin-bottom: 4px;
+  position: relative;
+}
+
+.flow-item:hover { background: var(--ink3); border-color: var(--wire2); }
+
+.flow-item.active {
+  background: rgba(91,94,244,0.08);
+  border-color: rgba(91,94,244,0.35);
+}
+
+.flow-item.active::before {
+  content: '';
+  position: absolute;
+  left: 0; top: 0; bottom: 0;
+  width: 2px;
+  background: var(--signal);
+  border-radius: 2px 0 0 2px;
+}
+
+.flow-icon {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.flow-info { flex: 1; min-width: 0; }
+
+.flow-name {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--bright);
+  margin-bottom: 2px;
+  line-height: 1.3;
+}
+
+.flow-desc {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+
+.flow-type {
+  font-family: var(--mono);
+  font-size: 7px;
+  padding: 2px 5px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  font-weight: 700;
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+.ft-ui { background: rgba(91,94,244,0.15); color: var(--signal2); }
+.ft-data { background: rgba(0,200,240,0.1); color: var(--data); }
+.ft-logic { background: rgba(0,229,160,0.1); color: var(--go); }
+.ft-eval { background: rgba(255,168,66,0.1); color: var(--warn); }
+.ft-security { background: rgba(255,77,109,0.1); color: var(--stop); }
+
+/* ─── NODE LEGEND ─── */
+.legend-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 5px;
+}
+
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--muted);
+}
+
+.legend-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* ─── CANVAS ─── */
+.canvas {
+  position: relative;
+  overflow: hidden;
+  background: var(--ink);
+  background-image:
+    radial-gradient(circle at 20% 20%, rgba(91,94,244,0.04) 0%, transparent 50%),
+    radial-gradient(circle at 80% 80%, rgba(0,200,240,0.03) 0%, transparent 50%);
+}
+
+/* grid dots */
+.canvas::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(circle, var(--wire) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: 16px 16px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+#flow-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* ─── NODES ─── */
+.node {
+  position: absolute;
+  border-radius: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--wire2);
+  background: var(--ink2);
+  cursor: pointer;
+  transition: all 0.2s;
+  min-width: 140px;
+  max-width: 180px;
+  user-select: none;
+  transform: translate(-50%, -50%);
+}
+
+.node:hover {
+  transform: translate(-50%, -50%) translateY(-2px);
+  border-color: var(--wire2);
+}
+
+.node.lit { border-color: var(--signal) !important; box-shadow: var(--glow-signal); }
+.node.lit-go { border-color: var(--go) !important; box-shadow: var(--glow-go); }
+.node.lit-data { border-color: var(--data) !important; box-shadow: var(--glow-data); }
+.node.lit-warn { border-color: var(--warn) !important; box-shadow: 0 0 18px rgba(255,168,66,0.3); }
+.node.lit-stop { border-color: var(--stop) !important; box-shadow: 0 0 18px rgba(255,77,109,0.3); }
+.node.dim-node { opacity: 0.25; transition: opacity 0.3s; }
+
+.node-type {
+  font-family: var(--mono);
+  font-size: 7px;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 5px;
+  opacity: 0.6;
+}
+
+.node-name {
+  font-weight: 700;
+  font-size: 11px;
+  color: var(--bright);
+  line-height: 1.3;
+  margin-bottom: 3px;
+}
+
+.node-sub {
+  font-family: var(--mono);
+  font-size: 8px;
+  color: var(--muted);
+  line-height: 1.4;
+}
+
+.node-badge {
+  display: inline-block;
+  margin-top: 5px;
+  padding: 1px 5px;
+  border-radius: 3px;
+  font-family: var(--mono);
+  font-size: 7px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+/* ─── STEP PANEL ─── */
+.step-panel {
+  position: absolute;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 680px;
+  max-width: calc(100% - 40px);
+  background: var(--ink2);
+  border: 1px solid var(--wire2);
+  border-radius: 12px;
+  padding: 16px 20px;
+  z-index: 50;
+  display: none;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.6);
+}
+
+.step-panel.show { display: block; animation: riseUp 0.2s ease; }
+@keyframes riseUp { from{opacity:0;transform:translateX(-50%) translateY(8px)} to{opacity:1;transform:translateX(-50%) translateY(0)} }
+
+.step-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.step-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--signal);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  flex-shrink: 0;
+  box-shadow: var(--glow-signal);
+}
+
+.step-title { font-weight: 700; font-size: 13px; color: var(--bright); flex: 1; }
+
+.step-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.step-btn {
+  width: 26px;
+  height: 26px;
+  border-radius: 5px;
+  background: var(--ink3);
+  border: 1px solid var(--wire2);
+  color: var(--ghost);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  transition: all 0.12s;
+}
+
+.step-btn:hover { background: var(--wire2); color: var(--bright); }
+.step-btn:disabled { opacity: 0.3; cursor: default; }
+
+.step-progress {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--muted);
+  min-width: 36px;
+  text-align: center;
+}
+
+.step-desc {
+  font-size: 12px;
+  color: var(--ghost);
+  line-height: 1.6;
+  margin-bottom: 10px;
+}
+
+.step-annotation {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.annot {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 9px;
+  border-radius: 5px;
+  font-family: var(--mono);
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.annot-signal { background: rgba(91,94,244,0.12); color: var(--signal2); border: 1px solid rgba(91,94,244,0.25); }
+.annot-go { background: rgba(0,229,160,0.1); color: var(--go); border: 1px solid rgba(0,229,160,0.2); }
+.annot-data { background: rgba(0,200,240,0.08); color: var(--data); border: 1px solid rgba(0,200,240,0.18); }
+.annot-warn { background: rgba(255,168,66,0.1); color: var(--warn); border: 1px solid rgba(255,168,66,0.2); }
+.annot-stop { background: rgba(255,77,109,0.1); color: var(--stop); border: 1px solid rgba(255,77,109,0.2); }
+
+/* ─── TOOLTIP ─── */
+.tooltip {
+  position: absolute;
+  background: var(--ink3);
+  border: 1px solid var(--wire2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  pointer-events: none;
+  z-index: 200;
+  min-width: 200px;
+  max-width: 260px;
+  display: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+}
+
+.tooltip.show { display: block; animation: fadeIn 0.12s ease; }
+@keyframes fadeIn { from{opacity:0} to{opacity:1} }
+
+.tt-title { font-weight: 700; font-size: 11px; color: var(--bright); margin-bottom: 4px; }
+.tt-sub { font-family: var(--mono); font-size: 9px; color: var(--muted); line-height: 1.5; }
+.tt-tag { display: inline-block; margin-top: 6px; padding: 2px 6px; border-radius: 3px; font-family: var(--mono); font-size: 8px; }
+
+/* ─── EDGE ANIMATIONS ─── */
+.edge-active {
+  stroke-dasharray: 8 4;
+  animation: flowAnim 0.8s linear infinite;
+}
+
+@keyframes flowAnim {
+  to { stroke-dashoffset: -12; }
+}
+
+/* ─── NO FLOW PLACEHOLDER ─── */
+.no-flow {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  pointer-events: none;
+}
+
+.no-flow-icon { font-size: 32px; opacity: 0.2; }
+.no-flow-text { font-family: var(--mono); font-size: 11px; color: var(--dim); letter-spacing: 1px; }
+
+/* ─── SCROLLBAR ─── */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--wire2); border-radius: 2px; }
+
+/* ─── CONTROLS ─── */
+.canvas-controls {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  z-index: 60;
+}
+
+.ctrl-btn {
+  width: 30px;
+  height: 30px;
+  background: var(--ink2);
+  border: 1px solid var(--wire2);
+  border-radius: 6px;
+  color: var(--ghost);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  transition: all 0.12s;
+}
+
+.ctrl-btn:hover { background: var(--ink3); color: var(--bright); border-color: var(--signal); }
+</style>
+</head>
+<body>
+
+<div class="shell">
+
+  <!-- ── TOPBAR ── -->
+  <div class="topbar">
+    <div class="logo-mark">Ai</div>
+    <div>
+      <div class="topbar-title">Ai-Agent Builder</div>
+      <div class="topbar-sub">ARCHITECTURAL FLOW MAPPER v1.0</div>
+    </div>
+    <div class="topbar-spacer"></div>
+    <div class="topbar-pill pill-signal"><div class="pulse"></div>UI LAYER</div>
+    <div class="topbar-pill pill-go"><div class="pulse"></div>LOGIC LAYER</div>
+    <div class="topbar-pill pill-data"><div class="pulse"></div>DATA LAYER</div>
+  </div>
+
+  <!-- ── SIDEBAR ── -->
+  <div class="sidebar">
+
+    <div class="sidebar-section">
+      <div class="section-head">Select a Flow</div>
+      <div id="flow-list"></div>
+    </div>
+
+    <div class="sidebar-section" style="padding-top:12px">
+      <div class="section-head">Node Legend</div>
+      <div class="legend-grid">
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(91,94,244,0.5);border:1px solid var(--signal)"></div>UI Component</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(0,229,160,0.4);border:1px solid var(--go)"></div>Logic Engine</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(0,200,240,0.35);border:1px solid var(--data)"></div>Data / File</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,168,66,0.4);border:1px solid var(--warn)"></div>Eval / Judge</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(255,77,109,0.35);border:1px solid var(--stop)"></div>Security</div>
+        <div class="legend-item"><div class="legend-swatch" style="background:rgba(152,152,200,0.3);border:1px solid var(--ghost)"></div>Config / State</div>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- ── CANVAS ── -->
+  <div class="canvas" id="canvas">
+
+    <svg id="flow-svg" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arr-signal" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#5b5ef4"/>
+        </marker>
+        <marker id="arr-go" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#00e5a0"/>
+        </marker>
+        <marker id="arr-data" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#00c8f0"/>
+        </marker>
+        <marker id="arr-warn" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#ffa842"/>
+        </marker>
+        <marker id="arr-stop" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#ff4d6d"/>
+        </marker>
+        <marker id="arr-dim" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+          <polygon points="0 0, 8 3, 0 6" fill="#3a3a5a"/>
+        </marker>
+      </defs>
+    </svg>
+
+    <div id="nodes-layer" style="position:absolute;inset:0;pointer-events:none"></div>
+
+    <div class="no-flow" id="no-flow">
+      <div class="no-flow-icon">◈</div>
+      <div class="no-flow-text">Select a flow from the sidebar to begin tracing</div>
+    </div>
+
+    <div class="canvas-controls">
+      <div class="ctrl-btn" onclick="resetView()" title="Reset view">↺</div>
+    </div>
+
+    <div class="tooltip" id="tooltip"></div>
+  </div>
+
+</div>
+
+<!-- ── STEP PANEL ── -->
+<div class="step-panel" id="step-panel">
+  <div class="step-header">
+    <div class="step-num" id="sp-num">1</div>
+    <div class="step-title" id="sp-title">Step title</div>
+    <div class="step-nav">
+      <div class="step-btn" id="sp-prev" onclick="prevStep()">‹</div>
+      <div class="step-progress" id="sp-progress">1/5</div>
+      <div class="step-btn" id="sp-next" onclick="nextStep()">›</div>
+      <div class="step-btn" onclick="closeFlow()" title="Close">✕</div>
+    </div>
+  </div>
+  <div class="step-desc" id="sp-desc"></div>
+  <div class="step-annotation" id="sp-annots"></div>
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════════════
+// DATA LAYER — appFlowData
+// ════════════════════════════════════════════════════════════════
+
+const appFlowData = {
+
+  nodes: {
+    // ── UI Layer ──
+    "sidebar":       { label:"Sidebar", sub:"Nav · Stats · Agent list",   type:"UI",      color:"signal", x:0.08, y:0.22 },
+    "canvas":        { label:"Main Canvas", sub:"Workspace · Forms · Pipeline view",type:"UI",  color:"signal", x:0.38, y:0.22 },
+    "right-panel":   { label:"Right Panel", sub:"SKILL.md · Eval · Audit · Log", type:"UI",   color:"signal", x:0.72, y:0.22 },
+    "topbar":        { label:"Topbar", sub:"Breadcrumb · Validate · Build", type:"UI",    color:"signal", x:0.38, y:0.08 },
+
+    // ── Input / Forms ──
+    "agent-identity":{ label:"Agent Identity", sub:"agent-name input · badge", type:"Form",   color:"signal", x:0.18, y:0.38 },
+    "use-case":      { label:"Use Case", sub:"Textarea + Quick Fill pills",    type:"Form",   color:"signal", x:0.38, y:0.38 },
+    "templates":     { label:"Template Selector", sub:"6 templates · tpl-card", type:"Form",  color:"signal", x:0.58, y:0.38 },
+    "file-drop":     { label:"File Dropzone", sub:"Drag-drop · 17 file types · filter bar", type:"Form", color:"data", x:0.18, y:0.55 },
+    "model-config":  { label:"Model Config", sub:"Provider · tokens · temp · memory", type:"Form",color:"signal", x:0.55, y:0.55 },
+    "feature-flags": { label:"Feature Flags", sub:"12 toggle switches",       type:"Form",   color:"signal", x:0.75, y:0.55 },
+
+    // ── Logic Layer ──
+    "build-engine":  { label:"Build Engine", sub:"validate() → build() → package() → download()", type:"Logic", color:"go", x:0.38, y:0.68 },
+    "router":        { label:"ROUTER.md", sub:"Deterministic routing · regex / JSONPath", type:"Logic", color:"go", x:0.08, y:0.72 },
+    "sequence":      { label:"SEQUENCE.md", sub:"Batch iterator · clean context per item", type:"Logic",color:"go", x:0.22, y:0.82 },
+    "gate":          { label:"GATE.md", sub:"HITL durable wait · HMAC-signed approval", type:"Logic", color:"go", x:0.38, y:0.88 },
+    "datamap":       { label:"DATA_MAP.md", sub:"JSONPath field mapping between skills", type:"Logic", color:"go", x:0.55, y:0.82 },
+    "errpolicy":     { label:"ERROR_POLICY.md", sub:"Retry · fallback · circuit breaker", type:"Logic", color:"warn", x:0.70, y:0.72 },
+
+    // ── Data / File Layer ──
+    "skill-md":      { label:"SKILL.md", sub:"agentskills.io manifest · YAML frontmatter", type:"Data", color:"data", x:0.08, y:0.55 },
+    "agents-md":     { label:"AGENTS.md", sub:"Orchestration city map · roles",  type:"Data",   color:"data", x:0.72, y:0.38 },
+    "memories-md":   { label:"MEMORIES.md", sub:"Cross-session learnings · session store", type:"Data",color:"data", x:0.88, y:0.55 },
+    "ref-files":     { label:"./references/", sub:"guardrails · llm-judge · audit · gov · permissions", type:"Data",color:"data", x:0.88, y:0.72 },
+    "blob-api":      { label:"Blob API", sub:"Client-side file generation · no server", type:"Data", color:"data", x:0.58, y:0.68 },
+    "routing-manifest":{ label:"routing-manifest.json", sub:"Compiled rule index for runner", type:"Data",color:"data", x:0.08, y:0.88 },
+
+    // ── Skills ──
+    "skills-registry":{ label:".agents/skills/", sub:"code-review · security-audit · rag · sprint-planner", type:"Skills",color:"data", x:0.22, y:0.68 },
+    "skill-loading":  { label:"Progressive Skill Loading", sub:"Discovery → Execution → Orchestration", type:"Logic",color:"go", x:0.38, y:0.55 },
+
+    // ── Eval / Security ──
+    "guardrails":    { label:"Guardrails (3-Layer)", sub:"Input → Execution → Output DLP",  type:"Security",color:"stop", x:0.88, y:0.38 },
+    "llm-judge":     { label:"LLM-as-Judge", sub:"claude-opus-4 · Tier A/B/C scoring",      type:"Eval",   color:"warn", x:0.72, y:0.72 },
+    "red-team":      { label:"Red Team Evals", sub:"32 adversarial probes · 7 red-team prompts", type:"Eval",color:"warn", x:0.88, y:0.88 },
+    "audit-trail":   { label:"Audit Trail", sub:"Append-only · UUID events · DLP redacted", type:"Security",color:"stop", x:0.72, y:0.88 },
+
+    // ── Multi-Agent ──
+    "architect":     { label:"Architect Agent", sub:"claude-opus-4 · planning + dispatch",   type:"Agent",  color:"signal", x:0.08, y:0.38 },
+    "worker":        { label:"Worker Agents", sub:"claude-sonnet-4 · Developer · Analyst",   type:"Agent",  color:"signal", x:0.55, y:0.22 },
+    "security-officer":{ label:"Security Officer", sub:"Adversarial CISO · Semgrep · Bandit", type:"Security",color:"stop", x:0.88, y:0.22 },
+
+    // ── Deployment ──
+    "deploy-pkg":    { label:"Deployment Package", sub:"12 .md files · zip download",        type:"Output", color:"go", x:0.55, y:0.08 },
+  },
+
+  edges: [
+    // Topbar → Canvas
+    { from:"topbar", to:"build-engine", label:"Build Agent →", color:"signal" },
+    { from:"topbar", to:"guardrails",   label:"🛡 Guardrails",  color:"stop"  },
+
+    // Sidebar ↔ Canvas
+    { from:"sidebar", to:"canvas",       label:"View switch",   color:"signal" },
+    { from:"canvas",  to:"right-panel",  label:"Live preview",  color:"signal" },
+
+    // Forms → Build Engine
+    { from:"agent-identity", to:"build-engine", label:"name",    color:"signal" },
+    { from:"use-case",       to:"build-engine", label:"usecase", color:"signal" },
+    { from:"templates",      to:"build-engine", label:"template",color:"signal" },
+    { from:"file-drop",      to:"build-engine", label:"files[]", color:"data"   },
+    { from:"model-config",   to:"build-engine", label:"cfg",     color:"signal" },
+    { from:"feature-flags",  to:"build-engine", label:"flags",   color:"warn"   },
+
+    // Build Engine → Outputs
+    { from:"build-engine", to:"skill-md",   label:"generates",  color:"go"    },
+    { from:"build-engine", to:"agents-md",  label:"generates",  color:"go"    },
+    { from:"build-engine", to:"memories-md",label:"generates",  color:"go"    },
+    { from:"build-engine", to:"blob-api",   label:"package()",  color:"data"  },
+    { from:"blob-api",     to:"deploy-pkg", label:"download()", color:"go"    },
+
+    // Skill loading chain
+    { from:"file-drop",     to:"skills-registry", label:"skill files",  color:"data"  },
+    { from:"skills-registry", to:"skill-loading", label:"YAML scan",    color:"data"  },
+    { from:"skill-loading",   to:"router",        label:"classify",     color:"go"    },
+
+    // Logic components chain
+    { from:"router",    to:"sequence",  label:"batch route",  color:"go"   },
+    { from:"sequence",  to:"gate",      label:"item done",    color:"go"   },
+    { from:"gate",      to:"datamap",   label:"approved",     color:"go"   },
+    { from:"datamap",   to:"errpolicy", label:"mapped output",color:"warn" },
+    { from:"errpolicy", to:"llm-judge", label:"retry/pass",   color:"warn" },
+    { from:"router",    to:"routing-manifest", label:"compile rules", color:"data" },
+
+    // Multi-agent
+    { from:"architect",        to:"worker",           label:"dispatch",     color:"signal" },
+    { from:"worker",           to:"security-officer", label:"code output",  color:"stop"   },
+    { from:"security-officer", to:"guardrails",       label:"scan",         color:"stop"   },
+    { from:"security-officer", to:"architect",        label:"veto / pass",  color:"stop"   },
+
+    // Guardrails / Eval
+    { from:"guardrails", to:"ref-files",  label:"policy KB",   color:"stop"  },
+    { from:"guardrails", to:"audit-trail",label:"audit event", color:"stop"  },
+    { from:"llm-judge",  to:"red-team",   label:"adversarial", color:"warn"  },
+    { from:"llm-judge",  to:"audit-trail",label:"score logged",color:"warn"  },
+
+    // Memory
+    { from:"memories-md", to:"architect", label:"session ctx", color:"data" },
+    { from:"memories-md", to:"skill-loading", label:"cross-session", color:"data" },
+
+    // Right panel preview
+    { from:"skill-md",    to:"right-panel", label:"live preview", color:"data" },
+    { from:"agents-md",   to:"right-panel", label:"AGENTS tab",   color:"data" },
+    { from:"llm-judge",   to:"right-panel", label:"EVAL tab",     color:"warn" },
+    { from:"audit-trail", to:"right-panel", label:"LOG tab",      color:"stop" },
+
+    // References
+    { from:"build-engine", to:"ref-files", label:"generates", color:"go" },
+    { from:"ref-files",    to:"memories-md", label:"persistence", color:"data" },
+  ],
+
+  flows: [
+    {
+      id: "build-agent",
+      name: "Build Agent Flow",
+      desc: "Full agent authoring → package download",
+      icon: "⚡",
+      type: "ui",
+      steps: [
+        {
+          nodes: ["topbar","canvas","agent-identity"],
+          edges: [["topbar","canvas"],["canvas","agent-identity"]],
+          title: "User Interaction: Agent Identity",
+          desc: "The user opens the single HTML file in their browser. The Topbar shows the breadcrumb. The canvas renders the Main Workspace. The user types an agent name into the `agent-name-input` field — the `onNameChange()` event fires, updating live SKILL.md preview in the Right Panel.",
+          annots: [
+            {cls:"annot-signal", icon:"◈", text:"Event: oninput → onNameChange()"},
+            {cls:"annot-data", icon:"→", text:"DOM ID: #agent-name"},
+            {cls:"annot-signal", icon:"⟳", text:"Live: out-name span updates"},
+          ]
+        },
+        {
+          nodes: ["use-case","templates"],
+          edges: [["canvas","use-case"],["canvas","templates"]],
+          title: "Use Case + Template Selection",
+          desc: "The user fills in the Use Case textarea or clicks a Quick Fill pill (e.g. 'Code Review'). `quickFill()` populates the textarea from the QUICK_FILLS constant. Then the user clicks a Template card — `selectTemplate('react')` marks it `.selected` and updates the AGENTS.md preview with roles, pattern, and pipeline nodes.",
+          annots: [
+            {cls:"annot-signal", icon:"◈", text:"quickFill() → QUICK_FILLS[key]"},
+            {cls:"annot-signal", icon:"◈", text:"selectTemplate() → TEMPLATES[key]"},
+            {cls:"annot-go", icon:"⚙", text:"State: selectedTemplate, useCase"},
+          ]
+        },
+        {
+          nodes: ["file-drop","skills-registry"],
+          edges: [["file-drop","skills-registry"],["canvas","file-drop"]],
+          title: "File Ingestion: Reference Files",
+          desc: "The user drags .md/.docx/.pdf/.py files onto the Dropzone. `dzDrop()` calls `handleFiles()` which reads the FileList, categorizes by extension (text/doc/code), renders file chips with colored badges, and updates file count stats. Files are stored in the `uploadedFiles[]` array in JS state — zero server contact.",
+          annots: [
+            {cls:"annot-data", icon:"📂", text:"Event: ondrop → dzDrop()"},
+            {cls:"annot-data", icon:"→", text:"FileReader API (browser-native)"},
+            {cls:"annot-go", icon:"⚙", text:"State: uploadedFiles[] array"},
+            {cls:"annot-signal", icon:"◈", text:"Stats: #stat-files updates"},
+          ]
+        },
+        {
+          nodes: ["model-config","feature-flags"],
+          edges: [["canvas","model-config"],["canvas","feature-flags"]],
+          title: "Configuration: Model + Feature Flags",
+          desc: "The user selects Provider/Model from the dropdown, sets max tokens and temperature, and picks a memory strategy (stateful-graph, vector-db, etc.). Below, 12 toggle switches control HITL, audit trail, multi-agent, Agentic RAG, LLM-judge, sandbox, red-team, and the 5 logic components. All are read at build time.",
+          annots: [
+            {cls:"annot-signal", icon:"◈", text:"cfg-model · cfg-tokens · cfg-temp"},
+            {cls:"annot-signal", icon:"◈", text:"ff-hitl · ff-audit · ff-mas ..."},
+            {cls:"annot-go", icon:"⚙", text:"State: feature flags object"},
+          ]
+        },
+        {
+          nodes: ["topbar","build-engine","blob-api","deploy-pkg"],
+          edges: [["topbar","build-engine"],["build-engine","blob-api"],["blob-api","deploy-pkg"]],
+          title: "Build Engine: validate() → build() → download()",
+          desc: "Clicking 'Build Agent →' fires `doBuild()`. First `validate()` runs — checking agent name, use case, and template selection. Then a 12-step animated build sequence runs via setTimeout chain, generating SKILL.md, AGENTS.md, MEMORIES.md, and all reference files as strings. `package()` passes them to the Blob API: `new Blob([content], {type:'text/plain'})`. A revocable URL is created, injected into a hidden `<a>`, and `.click()` triggers the download. Zero server contact.",
+          annots: [
+            {cls:"annot-go", icon:"⚡", text:"validate() → 12-step build()"},
+            {cls:"annot-data", icon:"→", text:"Blob API: client-side file gen"},
+            {cls:"annot-go", icon:"→", text:"12 .md files in .zip package"},
+            {cls:"annot-signal", icon:"◈", text:"Progress bar: pbar-fill width %"},
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "skill-loading",
+      name: "Progressive Skill Loading",
+      desc: "Discovery → Execution → Orchestration 3-level pattern",
+      icon: "🔍",
+      type: "logic",
+      steps: [
+        {
+          nodes: ["file-drop","skills-registry"],
+          edges: [["file-drop","skills-registry"]],
+          title: "Level 0: File Ingestion",
+          desc: "User drops .md skill files into the Dropzone (e.g. code-review.md, security-audit.md). These are read client-side and stored in `uploadedFiles[]`. The `.agents/skills/` directory convention is recognized — files matching the pattern are auto-tagged as skill files.",
+          annots: [
+            {cls:"annot-data", icon:"📂", text:"Drop .md skill files"},
+            {cls:"annot-data", icon:"→", text:".agents/skills/ convention"},
+          ]
+        },
+        {
+          nodes: ["skills-registry","skill-loading"],
+          edges: [["skills-registry","skill-loading"]],
+          title: "Level 1: Discovery — YAML Frontmatter Scan",
+          desc: "The Discovery Prompt fires: scan all skill files and read ONLY the YAML frontmatter + # Overview section. Based on the user's request, the LLM identifies the single most relevant skill by matching the `description:` field. Output: filename + reason, or 'No match → general knowledge'. This keeps context window usage minimal.",
+          annots: [
+            {cls:"annot-go", icon:"◈", text:"Scan: YAML frontmatter only"},
+            {cls:"annot-signal", icon:"→", text:"Match: description: field"},
+            {cls:"annot-data", icon:"⚙", text:"Tokens: frontmatter only, not full file"},
+          ]
+        },
+        {
+          nodes: ["skill-loading","router","memories-md"],
+          edges: [["skill-loading","router"],["memories-md","skill-loading"]],
+          title: "Level 2: Execution — Full Protocol Load",
+          desc: "The matched skill file is loaded in full including ## Instructions, ## Constraints, and ## Output Format. The Execution Prompt enforces: strict adherence, file overrides training data, no hallucinations. MEMORIES.md is also read to inject cross-session learnings as context. The ROUTER.md applies deterministic rules before the LLM is invoked.",
+          annots: [
+            {cls:"annot-go", icon:"◈", text:"Load: full SKILL.md content"},
+            {cls:"annot-signal", icon:"→", text:"Execution Prompt: strict mode"},
+            {cls:"annot-data", icon:"⚙", text:"MEMORIES.md: session context injected"},
+            {cls:"annot-warn", icon:"→", text:"ROUTER.md: pre-LLM deterministic rules"},
+          ]
+        },
+        {
+          nodes: ["skill-loading","ref-files","agents-md"],
+          edges: [["skill-loading","ref-files"],["agents-md","skill-loading"]],
+          title: "Level 3: Orchestration — On-demand References",
+          desc: "The Orchestration Prompt loads ./references/ on-demand — guardrails.md, llm-judge.md, governance.md only when needed. The Orchestrator consults AGENTS.md (City Map) for project structure and roles, dispatches sub-tasks to worker agents via their INSTRUCTIONS.md, and writes learnings back to MEMORIES.md after the session completes.",
+          annots: [
+            {cls:"annot-data", icon:"📂", text:"./references/ loaded on-demand"},
+            {cls:"annot-go", icon:"→", text:"AGENTS.md: city map roles"},
+            {cls:"annot-signal", icon:"⚙", text:"Worker agents: INSTRUCTIONS.md"},
+            {cls:"annot-go", icon:"✔", text:"Session end: MEMORIES.md updated"},
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "six-layer-pipeline",
+      name: "6-Layer Agent Pipeline",
+      desc: "Perception → Reasoning → Context → Execution → Eval → Governance",
+      icon: "⚙️",
+      type: "logic",
+      steps: [
+        {
+          nodes: ["guardrails","canvas"],
+          edges: [["canvas","guardrails"]],
+          title: "Layer 1: Perception & Ingress",
+          desc: "User input arrives. The guardrails input layer fires first: prompt injection detection, PII masking before any LLM call, max token length enforcement. Intent classification identifies the task type. Tool requirement prediction looks ahead to which MCP adapters will be needed. The Deterministic Router evaluates rules top-down before touching the LLM.",
+          annots: [
+            {cls:"annot-stop", icon:"🛡", text:"Input: prompt injection detection"},
+            {cls:"annot-stop", icon:"🛡", text:"Input: PII masking (pre-LLM)"},
+            {cls:"annot-go", icon:"◈", text:"ROUTER.md: deterministic classification"},
+          ]
+        },
+        {
+          nodes: ["architect","skill-loading","memories-md"],
+          edges: [["architect","skill-loading"],["memories-md","architect"]],
+          title: "Layer 2 & 3: Reasoning + Context",
+          desc: "The Architect Agent (claude-opus-4) performs chain-of-thought decomposition, breaking the task into sub-goals with dependency mapping. ReAct pattern: Think → Act → Observe loop. The Context layer pulls from: Vector DB (Agentic RAG if enabled), the State Graph tracking current plan position, and MEMORIES.md for cross-session learnings that prevent past mistakes.",
+          annots: [
+            {cls:"annot-signal", icon:"◈", text:"ReAct: Think → Act → Observe"},
+            {cls:"annot-data", icon:"→", text:"RAG: Vector DB retrieval"},
+            {cls:"annot-data", icon:"⚙", text:"Memory: stateful-graph position"},
+          ]
+        },
+        {
+          nodes: ["worker","router","datamap","errpolicy"],
+          edges: [["architect","worker"],["worker","router"],["datamap","errpolicy"]],
+          title: "Layer 4: Tool Execution",
+          desc: "Worker agents (claude-sonnet-4) execute tools via MCP adapters with schema-validated arguments. The SEQUENCE.md batch controller gives each item a clean isolated context to prevent hallucination on bulk tasks. DATA_MAP.md explicitly maps JSONPath fields between skill outputs and inputs. ERROR_POLICY.md wraps every call: retry with exponential backoff, fallback skill chains, degraded mode, circuit breaker.",
+          annots: [
+            {cls:"annot-go", icon:"⟳", text:"SEQUENCE: clean context per item"},
+            {cls:"annot-go", icon:"⇄", text:"DATA_MAP: explicit field mapping"},
+            {cls:"annot-warn", icon:"⚡", text:"ERROR_POLICY: retry + circuit breaker"},
+            {cls:"annot-data", icon:"→", text:"MCP adapters: schema-validated calls"},
+          ]
+        },
+        {
+          nodes: ["llm-judge","red-team","security-officer"],
+          edges: [["llm-judge","red-team"],["security-officer","guardrails"]],
+          title: "Layer 5 & 6: Evaluation + Governance",
+          desc: "The LLM-as-Judge (claude-opus-4, always stronger than the worker) scores output across Tier A (deterministic: compile, lint, schema), Tier B (semantic: correctness 30%, security 30%, maintainability 20%, efficiency 20%), and Tier C (performance/cost). The Security Officer agent applies adversarial review with hard veto power. Output guardrails scan for DLP (secrets/PII). GATE.md enforces HITL for high-risk actions. Every event is appended to the audit trail.",
+          annots: [
+            {cls:"annot-warn", icon:"⚖", text:"Judge: Tier A→B→C scoring"},
+            {cls:"annot-stop", icon:"🛡", text:"Output DLP: secrets + PII scan"},
+            {cls:"annot-warn", icon:"🔐", text:"GATE.md: HITL durable wait"},
+            {cls:"annot-stop", icon:"📋", text:"Audit: every event logged"},
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "multi-agent",
+      name: "Multi-Agent (Supervisor MAS)",
+      desc: "Architect → Workers → Security Officer adversarial loop",
+      icon: "🏛️",
+      type: "logic",
+      steps: [
+        {
+          nodes: ["architect","canvas","memories-md"],
+          edges: [["canvas","architect"],["memories-md","architect"]],
+          title: "Architect Agent: Planning & Dispatch",
+          desc: "The Architect Agent (claude-opus-4, high-reasoning) receives the task. It reads AGENTS.md City Map and MEMORIES.md for context. It decomposes the goal into sub-tasks, selects the appropriate SKILL.md for each, and dispatches to Worker agents. The Architect holds veto power over all Worker outputs and can reject and re-dispatch.",
+          annots: [
+            {cls:"annot-signal", icon:"◈", text:"Model: claude-opus-4"},
+            {cls:"annot-data", icon:"→", text:"AGENTS.md: city map roles"},
+            {cls:"annot-data", icon:"⚙", text:"MEMORIES.md: session context"},
+            {cls:"annot-signal", icon:"⚡", text:"Veto: blocks any Worker output"},
+          ]
+        },
+        {
+          nodes: ["worker","architect","skill-loading"],
+          edges: [["architect","worker"],["worker","skill-loading"]],
+          title: "Worker Agents: Execution",
+          desc: "Worker agents (claude-sonnet-4, cost-efficient) receive task assignments from the Architect. Each Worker loads the target SKILL.md via the progressive skill loading protocol: Discovery → Execution. Workers execute via MCP tool calls and return structured JSON output. Multiple workers can run in parallel via the SEQUENCE.md batch controller.",
+          annots: [
+            {cls:"annot-signal", icon:"◈", text:"Model: claude-sonnet-4 (volume)"},
+            {cls:"annot-go", icon:"→", text:"Tools: MCP adapter invocations"},
+            {cls:"annot-go", icon:"⟳", text:"Batch: SEQUENCE.md parallelism"},
+          ]
+        },
+        {
+          nodes: ["security-officer","guardrails","llm-judge","audit-trail"],
+          edges: [["worker","security-officer"],["security-officer","guardrails"],["security-officer","architect"],["llm-judge","audit-trail"]],
+          title: "Security Officer: Adversarial Review",
+          desc: "Every Worker output is routed through the Security Officer (claude-opus-4, CISO persona). The Security Officer runs Semgrep, Bandit, detect-secrets against code, and queries its Policy KB via Agentic RAG. On failure: structured rejection with policy citation (e.g. 'Rejected: Policy SEC-04 requires encryption-at-rest') routes back to Developer. Max 3 revision cycles before GATE.md escalates to human review.",
+          annots: [
+            {cls:"annot-stop", icon:"🛡", text:"Semgrep + Bandit + detect-secrets"},
+            {cls:"annot-stop", icon:"→", text:"Policy KB: Agentic RAG lookups"},
+            {cls:"annot-warn", icon:"⚡", text:"Max 3 revisions → GATE escalation"},
+            {cls:"annot-stop", icon:"📋", text:"HARD veto power over deployment"},
+          ]
+        },
+        {
+          nodes: ["gate","memories-md","deploy-pkg","audit-trail"],
+          edges: [["gate","deploy-pkg"],["gate","memories-md"],["audit-trail","right-panel"]],
+          title: "GATE Approval → Deploy",
+          desc: "If the Security Officer approves, the GATE.md checkpoint fires for irreversible actions. An HMAC-signed notification is sent to the approver via Slack webhook. State is persisted to .gates/ directory — a server restart does not lose the pending approval. On APPROVED: the Deployer agent packages output. Session learnings are written back to MEMORIES.md. All events are in the audit trail.",
+          annots: [
+            {cls:"annot-go", icon:"🔐", text:"GATE: HMAC-signed callback URL"},
+            {cls:"annot-data", icon:"⚙", text:"MEMORIES.md: session learnings written"},
+            {cls:"annot-go", icon:"✔", text:"Deploy: Blob download package"},
+            {cls:"annot-stop", icon:"📋", text:"Audit: 90-day append-only log"},
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "guardrails-flow",
+      name: "3-Layer Guardrails System",
+      desc: "Input → Execution sandbox → Output DLP enforcement",
+      icon: "🛡️",
+      type: "security",
+      steps: [
+        {
+          nodes: ["canvas","guardrails","ref-files"],
+          edges: [["canvas","guardrails"],["guardrails","ref-files"]],
+          title: "Layer 1: Input Guardrails",
+          desc: "Before any LLM invocation: prompt injection patterns are scanned via regex-based detection, PII is masked (emails, SSNs, credit cards identified and redacted), max token length is enforced. The configuration for these rules is loaded from ./references/guardrails.md. All trigger events are logged to the audit trail with guardrail_triggered: true.",
+          annots: [
+            {cls:"annot-stop", icon:"🛡", text:"Prompt injection: regex scan"},
+            {cls:"annot-stop", icon:"🛡", text:"PII masking: pre-LLM"},
+            {cls:"annot-data", icon:"→", text:"Config: ./references/guardrails.md"},
+          ]
+        },
+        {
+          nodes: ["worker","guardrails","errpolicy"],
+          edges: [["worker","guardrails"],["guardrails","errpolicy"]],
+          title: "Layer 2: Execution Guardrails",
+          desc: "When code execution is requested: Docker/gVisor sandbox spins up, Semgrep runs static analysis, Bandit performs Python security linting, detect-secrets scans for AWS keys / tokens / private keys. A network access allowlist prevents arbitrary outbound connections. If guardrails block: a structured error feeds back into the agent's reflection loop for self-correction.",
+          annots: [
+            {cls:"annot-stop", icon:"🛡", text:"Sandbox: Docker / gVisor isolation"},
+            {cls:"annot-stop", icon:"→", text:"Semgrep + Bandit + detect-secrets"},
+            {cls:"annot-warn", icon:"⚡", text:"On block: error → reflection loop"},
+            {cls:"annot-go", icon:"⚙", text:"Network: allowlist-only egress"},
+          ]
+        },
+        {
+          nodes: ["guardrails","llm-judge","gate","audit-trail"],
+          edges: [["guardrails","llm-judge"],["guardrails","gate"],["guardrails","audit-trail"]],
+          title: "Layer 3: Output Guardrails + HITL",
+          desc: "Output DLP scan checks for secrets, PII, hallucinations, and cost ceiling ($0.50/run default). The LLM-as-Judge scores the output. If a high-risk action is detected (e.g. deploying, deleting), GATE.md fires and pauses the agent in PENDING state. The audit trail records the blocked event with exact rule match, cost, verdict, and whether revision is required.",
+          annots: [
+            {cls:"annot-stop", icon:"🛡", text:"DLP: secrets + PII + hallucination"},
+            {cls:"annot-warn", icon:"⚖", text:"Judge: LLM scores output quality"},
+            {cls:"annot-go", icon:"🔐", text:"HITL: GATE.md for high-risk"},
+            {cls:"annot-stop", icon:"📋", text:"Audit: verdict + cost logged"},
+          ]
+        }
+      ]
+    },
+
+    {
+      id: "eval-flow",
+      name: "Evaluation Framework",
+      desc: "Tier A → Tier B (LLM-Judge) → Tier C · CI/CD gate",
+      icon: "⚖️",
+      type: "eval",
+      steps: [
+        {
+          nodes: ["build-engine","llm-judge"],
+          edges: [["build-engine","llm-judge"]],
+          title: "Tier A: Deterministic Evals (Must-Pass)",
+          desc: "Runs first. Fast, cheap, non-negotiable: compilability (no syntax errors), linting (ESLint/Pylint/project style config), unit tests (Jest suite in tests/unit/builder.test.js), and schema validation (JSON output matches expected schema). Any failure immediately blocks deployment — no exceptions.",
+          annots: [
+            {cls:"annot-go", icon:"✔", text:"Compile: no syntax errors"},
+            {cls:"annot-go", icon:"✔", text:"Lint: ESLint / Pylint"},
+            {cls:"annot-go", icon:"✔", text:"Tests: Jest 80+ assertions"},
+            {cls:"annot-go", icon:"✔", text:"Schema: JSON output validation"},
+          ]
+        },
+        {
+          nodes: ["llm-judge","security-officer","worker"],
+          edges: [["worker","llm-judge"],["security-officer","llm-judge"],["llm-judge","red-team"]],
+          title: "Tier B: LLM-as-Judge (Semantic Review)",
+          desc: "Judge model (always claude-opus-4 — stronger than the worker) evaluates output against the rubric: Correctness 30% (≥4/5 threshold), Security 30% (≥4/5, blocking), Maintainability 20% (≥4/5), Efficiency 20% (≥4/5). Returns structured JSON with scores, reasoning, verdict, and block_deployment flag. Enables automated CI/CD gating.",
+          annots: [
+            {cls:"annot-warn", icon:"⚖", text:"Judge model: claude-opus-4"},
+            {cls:"annot-warn", icon:"→", text:"Correctness 30% · Security 30%"},
+            {cls:"annot-warn", icon:"→", text:"Maintainability 20% · Efficiency 20%"},
+            {cls:"annot-warn", icon:"⚡", text:"Output: JSON verdict + block_deployment"},
+          ]
+        },
+        {
+          nodes: ["red-team","guardrails","audit-trail"],
+          edges: [["llm-judge","red-team"],["red-team","guardrails"],["red-team","audit-trail"]],
+          title: "Tier C + Red Team: Adversarial Evals",
+          desc: "32 adversarial probes including the canonical 7 red-team prompts (ignore instructions, DAN jailbreak, rm -rf, credential exfil, cost bypass, root access, guardrail disable). Run via scripts/eval-runner.py. Tier C checks token efficiency, wall-clock time, and cost per run. All 7 red-team prompts must pass for production certification. Results logged to audit trail.",
+          annots: [
+            {cls:"annot-stop", icon:"🔴", text:"7 red-team prompts: all must pass"},
+            {cls:"annot-warn", icon:"→", text:"Token efficiency + cost ceiling"},
+            {cls:"annot-go", icon:"⚙", text:"eval-runner.py + eval-runner.sh"},
+            {cls:"annot-stop", icon:"📋", text:"Certification: audit trail entry"},
+          ]
+        }
+      ]
+    }
+  ]
+};
+
+// ════════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════════
+let state = {
+  activeFlow: null,
+  currentStep: 0,
+  allNodeEls: {},
+  canvasW: 0,
+  canvasH: 0,
+};
+
+// ════════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  buildFlowList();
+  buildAllNodes();
+  drawBaseEdges();
+  observeResize();
+});
+
+function observeResize() {
+  const canvas = document.getElementById('canvas');
+  const ro = new ResizeObserver(() => {
+    state.canvasW = canvas.offsetWidth;
+    state.canvasH = canvas.offsetHeight;
+    repositionNodes();
+    if (state.activeFlow) renderFlow(state.activeFlow, state.currentStep);
+  });
+  ro.observe(canvas);
+  state.canvasW = canvas.offsetWidth;
+  state.canvasH = canvas.offsetHeight;
+}
+
+// ════════════════════════════════════════════════════════════════
+// SIDEBAR FLOW LIST
+// ════════════════════════════════════════════════════════════════
+function buildFlowList() {
+  const container = document.getElementById('flow-list');
+  appFlowData.flows.forEach(flow => {
+    const el = document.createElement('div');
+    el.className = 'flow-item';
+    el.id = 'flow-item-' + flow.id;
+    el.onclick = () => selectFlow(flow.id);
+    el.innerHTML = `
+      <div class="flow-icon" style="background:${iconBg(flow.type)}">${flow.icon}</div>
+      <div class="flow-info">
+        <div class="flow-name">${flow.name}</div>
+        <div class="flow-desc">${flow.desc}</div>
+      </div>
+      <div class="flow-type ft-${flow.type}">${flow.type.toUpperCase()}</div>
+    `;
+    container.appendChild(el);
+  });
+}
+
+function iconBg(type) {
+  const map = {ui:'rgba(91,94,244,0.12)',logic:'rgba(0,229,160,0.1)',eval:'rgba(255,168,66,0.1)',security:'rgba(255,77,109,0.1)',data:'rgba(0,200,240,0.08)'};
+  return map[type] || 'rgba(91,94,244,0.1)';
+}
+
+// ════════════════════════════════════════════════════════════════
+// NODES
+// ════════════════════════════════════════════════════════════════
+const colorMap = {
+  signal: { border:'var(--signal)', type:'rgba(91,94,244,0.08)', badge: 'rgba(91,94,244,0.15)', badgeColor: 'var(--signal2)' },
+  go:     { border:'var(--go)',     type:'rgba(0,229,160,0.07)',  badge: 'rgba(0,229,160,0.12)', badgeColor: 'var(--go)' },
+  data:   { border:'var(--data)',   type:'rgba(0,200,240,0.07)', badge: 'rgba(0,200,240,0.1)',  badgeColor: 'var(--data)' },
+  warn:   { border:'var(--warn)',   type:'rgba(255,168,66,0.07)',badge: 'rgba(255,168,66,0.12)',badgeColor: 'var(--warn)' },
+  stop:   { border:'var(--stop)',   type:'rgba(255,77,109,0.07)',badge: 'rgba(255,77,109,0.12)',badgeColor: 'var(--stop)' },
+  ghost:  { border:'var(--ghost)', type:'rgba(152,152,200,0.05)',badge: 'rgba(152,152,200,0.1)',badgeColor: 'var(--ghost)' },
+};
+
+function buildAllNodes() {
+  const layer = document.getElementById('nodes-layer');
+  layer.style.pointerEvents = 'none';
+  Object.entries(appFlowData.nodes).forEach(([id, n]) => {
+    const c = colorMap[n.color] || colorMap.ghost;
+    const el = document.createElement('div');
+    el.className = 'node dim-node';
+    el.id = 'node-' + id;
+    el.style.pointerEvents = 'auto';
+    el.innerHTML = `
+      <div class="node-type" style="color:${c.border}">${n.type}</div>
+      <div class="node-name">${n.label}</div>
+      <div class="node-sub">${n.sub}</div>
+      <div class="node-badge" style="background:${c.badge};color:${c.badgeColor}">${id}</div>
+    `;
+    el.addEventListener('mouseenter', (e) => showTooltip(e, id, n));
+    el.addEventListener('mouseleave', hideTooltip);
+    layer.appendChild(el);
+    state.allNodeEls[id] = el;
+  });
+  repositionNodes();
+}
+
+function repositionNodes() {
+  const W = state.canvasW || 800;
+  const H = state.canvasH || 600;
+  Object.entries(appFlowData.nodes).forEach(([id, n]) => {
+    const el = state.allNodeEls[id];
+    if (el) {
+      el.style.left = (n.x * W) + 'px';
+      el.style.top  = (n.y * H) + 'px';
+    }
+  });
+}
+
+// ════════════════════════════════════════════════════════════════
+// EDGES (SVG)
+// ════════════════════════════════════════════════════════════════
+function getNodeCenter(nodeId) {
+  const n = appFlowData.nodes[nodeId];
+  const W = state.canvasW || 800;
+  const H = state.canvasH || 600;
+  const el = state.allNodeEls[nodeId];
+  const ew = el ? el.offsetWidth : 160;
+  const eh = el ? el.offsetHeight : 80;
+  return {
+    x: n.x * W,
+    y: n.y * H,
+    w: ew,
+    h: eh,
+  };
+}
+
+function edgePath(fromId, toId) {
+  const f = getNodeCenter(fromId);
+  const t = getNodeCenter(toId);
+  const dx = t.x - f.x;
+  const dy = t.y - f.y;
+  const cx = f.x + dx * 0.4;
+  const cy = f.y + dy * 0.1;
+  const cx2 = f.x + dx * 0.6;
+  const cy2 = t.y - dy * 0.1;
+  return `M ${f.x} ${f.y} C ${cx} ${f.y}, ${cx2} ${t.y}, ${t.x} ${t.y}`;
+}
+
+function drawBaseEdges() {
+  const svg = document.getElementById('flow-svg');
+  // Clear existing paths except defs
+  const defs = svg.querySelector('defs');
+  svg.innerHTML = '';
+  svg.appendChild(defs);
+
+  appFlowData.edges.forEach((edge, i) => {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('id', `edge-${i}`);
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', 'var(--wire)');
+    path.setAttribute('stroke-width', '1');
+    path.setAttribute('opacity', '0.3');
+    path.setAttribute('d', edgePath(edge.from, edge.to));
+    path.setAttribute('marker-end', 'url(#arr-dim)');
+    svg.appendChild(path);
+  });
+}
+
+function getEdgeColor(color) {
+  const map = { signal:'#5b5ef4', go:'#00e5a0', data:'#00c8f0', warn:'#ffa842', stop:'#ff4d6d' };
+  return map[color] || '#5b5ef4';
+}
+
+// ════════════════════════════════════════════════════════════════
+// FLOW SELECTION
+// ════════════════════════════════════════════════════════════════
+function selectFlow(flowId) {
+  document.querySelectorAll('.flow-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('flow-item-' + flowId).classList.add('active');
+  document.getElementById('no-flow').style.display = 'none';
+
+  const flow = appFlowData.flows.find(f => f.id === flowId);
+  state.activeFlow = flow;
+  state.currentStep = 0;
+  renderFlow(flow, 0);
+  document.getElementById('step-panel').classList.add('show');
+}
+
+function renderFlow(flow, stepIdx) {
+  const step = flow.steps[stepIdx];
+
+  // Update step panel
+  document.getElementById('sp-num').textContent = stepIdx + 1;
+  document.getElementById('sp-title').textContent = step.title;
+  document.getElementById('sp-desc').textContent = step.desc;
+  document.getElementById('sp-progress').textContent = `${stepIdx + 1}/${flow.steps.length}`;
+  document.getElementById('sp-prev').disabled = stepIdx === 0;
+  document.getElementById('sp-next').disabled = stepIdx === flow.steps.length - 1;
+
+  // Render annotations
+  const annotEl = document.getElementById('sp-annots');
+  annotEl.innerHTML = step.annots.map(a =>
+    `<div class="annot ${a.cls}">${a.icon ? `<span>${a.icon}</span>` : ''}<span>${a.text}</span></div>`
+  ).join('');
+
+  // Highlight nodes
+  const litNodes = new Set(step.nodes);
+  Object.entries(state.allNodeEls).forEach(([id, el]) => {
+    el.classList.remove('lit','lit-go','lit-data','lit-warn','lit-stop','dim-node');
+    if (litNodes.has(id)) {
+      const n = appFlowData.nodes[id];
+      const cls = {signal:'lit',go:'lit-go',data:'lit-data',warn:'lit-warn',stop:'lit-stop'}[n.color] || 'lit';
+      el.classList.add(cls);
+    } else {
+      el.classList.add('dim-node');
+    }
+  });
+
+  // Highlight edges
+  const svg = document.getElementById('flow-svg');
+  const activeEdgePairs = new Set(step.edges.map(([a,b]) => `${a}__${b}`));
+
+  // Redraw all edges
+  const defs = svg.querySelector('defs');
+  svg.innerHTML = '';
+  svg.appendChild(defs);
+
+  appFlowData.edges.forEach((edge, i) => {
+    const key = `${edge.from}__${edge.to}`;
+    const isActive = activeEdgePairs.has(key);
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('id', `edge-${i}`);
+    path.setAttribute('fill', 'none');
+
+    if (isActive) {
+      const col = getEdgeColor(edge.color);
+      path.setAttribute('stroke', col);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('opacity', '0.9');
+      path.setAttribute('class', 'edge-active');
+      path.setAttribute('marker-end', `url(#arr-${edge.color})`);
+    } else {
+      path.setAttribute('stroke', 'var(--wire)');
+      path.setAttribute('stroke-width', '1');
+      path.setAttribute('opacity', '0.15');
+      path.setAttribute('marker-end', 'url(#arr-dim)');
+    }
+    path.setAttribute('d', edgePath(edge.from, edge.to));
+    svg.appendChild(path);
+
+    // Edge label
+    if (isActive && edge.label) {
+      const pathEl = path;
+      const len = pathEl.getTotalLength ? pathEl.getTotalLength() : 100;
+      const mid = pathEl.getPointAtLength ? pathEl.getPointAtLength(len / 2) : { x: 0, y: 0 };
+      const txt = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      txt.setAttribute('x', mid.x);
+      txt.setAttribute('y', mid.y - 5);
+      txt.setAttribute('fill', getEdgeColor(edge.color));
+      txt.setAttribute('font-size', '8');
+      txt.setAttribute('font-family', 'Space Mono, monospace');
+      txt.setAttribute('text-anchor', 'middle');
+      txt.setAttribute('opacity', '0.85');
+      txt.textContent = edge.label;
+      svg.appendChild(txt);
+    }
+  });
+}
+
+function nextStep() {
+  if (!state.activeFlow) return;
+  if (state.currentStep < state.activeFlow.steps.length - 1) {
+    state.currentStep++;
+    renderFlow(state.activeFlow, state.currentStep);
+  }
+}
+
+function prevStep() {
+  if (!state.activeFlow) return;
+  if (state.currentStep > 0) {
+    state.currentStep--;
+    renderFlow(state.activeFlow, state.currentStep);
+  }
+}
+
+function closeFlow() {
+  state.activeFlow = null;
+  state.currentStep = 0;
+  document.querySelectorAll('.flow-item').forEach(el => el.classList.remove('active'));
+  document.getElementById('step-panel').classList.remove('show');
+  document.getElementById('no-flow').style.display = 'flex';
+  // Reset all nodes
+  Object.values(state.allNodeEls).forEach(el => {
+    el.classList.remove('lit','lit-go','lit-data','lit-warn','lit-stop');
+    el.classList.add('dim-node');
+  });
+  drawBaseEdges();
+}
+
+function resetView() {
+  repositionNodes();
+  if (state.activeFlow) renderFlow(state.activeFlow, state.currentStep);
+  else drawBaseEdges();
+}
+
+// ════════════════════════════════════════════════════════════════
+// TOOLTIP
+// ════════════════════════════════════════════════════════════════
+function showTooltip(e, id, node) {
+  const tt = document.getElementById('tooltip');
+  const c = colorMap[node.color] || colorMap.ghost;
+  tt.innerHTML = `
+    <div class="tt-title">${node.label}</div>
+    <div class="tt-sub">${node.sub}</div>
+    <div><span class="tt-tag" style="background:${c.badge};color:${c.badgeColor}">${node.type} · ${id}</span></div>
+  `;
+  tt.classList.add('show');
+  moveTT(e);
+}
+
+function hideTooltip() {
+  document.getElementById('tooltip').classList.remove('show');
+}
+
+document.getElementById('canvas').addEventListener('mousemove', moveTT);
+
+function moveTT(e) {
+  const tt = document.getElementById('tooltip');
+  if (!tt.classList.contains('show')) return;
+  const canvas = document.getElementById('canvas');
+  const rect = canvas.getBoundingClientRect();
+  let x = e.clientX - rect.left + 12;
+  let y = e.clientY - rect.top + 12;
+  if (x + 270 > rect.width) x -= 280;
+  if (y + 100 > rect.height) y -= 110;
+  tt.style.left = x + 'px';
+  tt.style.top  = y + 'px';
+}
+
+// keyboard nav
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') nextStep();
+  if (e.key === 'ArrowLeft') prevStep();
+  if (e.key === 'Escape') closeFlow();
+});
+</script>
+</body>
+</html>
