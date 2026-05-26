@@ -2,7 +2,7 @@
 # Ai-Agent Builder
 
 version: 1.0.0
-generated: 2025-05-04
+generated: 2026-05-04
 
 ---
 
@@ -23,39 +23,39 @@ This "backend-less" architecture makes the tool:
 ┌─────────────────────────────────────────────────────────────────────┐
 │                         Browser (No Server)                         │
 │                                                                     │
-│  ┌──────────────────────────────────────────────────────────────┐  │
-│  │                    ai-agent-builder.html                     │  │
-│  │                                                              │  │
-│  │   ┌──────────┐   ┌─────────────────────┐   ┌────────────┐  │  │
-│  │   │          │   │                     │   │            │  │  │
-│  │   │ SIDEBAR  │   │  CANVAS (MAIN)      │   │   RIGHT    │  │  │
-│  │   │          │   │                     │   │   PANEL    │  │  │
-│  │   │ Agent    │   │ • Identity Input    │   │            │  │  │
-│  │   │ Nav      │   │ • Use Case Editor   │   │ • Live     │  │  │
-│  │   │          │   │ • Template Grid     │   │   Preview  │  │  │
-│  │   │ Workspace│   │ • File Drop Zone    │   │           │  │  │
-│  │   │ Links    │   │ • Skills Registry   │   │ • 4 tabs:  │  │  │
-│  │   │          │   │ • Pipeline View     │   │   SKILL/   │  │  │
-│  │   │ Stats    │   │ • Model Config      │   │   AGENTS/  │  │  │
-│  │   │          │   │ • Feature Flags     │   │   EVAL/    │  │  │
-│  │   │          │   │                     │   │   LOG      │  │  │
-│  │   └──────────┘   └─────────────────────┘   └────────────┘  │  │
-│  │                                                              │  │
-│  │   ┌──────────────────────────────────────────────────────┐  │  │
-│  │   │                  JavaScript Engine                   │  │  │
-│  │   │                                                      │  │  │
-│  │   │  STATE      TEMPLATES    BUILD_ENGINE    FILE_GEN    │  │  │
-│  │   │  {agents,   {react,      validate()      Blob API    │  │  │
-│  │   │   files,    supervisor,  build()         URL.create  │  │  │
-│  │   │   template, rag, ...}    finishBuild()   ObjectURL() │  │  │
-│  │   │   building}              downloadPkg()               │  │  │
-│  │   │                                                      │  │  │
-│  │   └──────────────────────────────────────────────────────┘  │  │
-│  └──────────────────────────────────────────────────────────────┘  │
+│  ┌──────────────────────────────────────────────────────────────┐   │
+│  │                    ai-agent-builder.html                     │   │
+│  │                                                              │   │
+│  │   ┌──────────┐   ┌─────────────────────┐   ┌────────────┐    │   │
+│  │   │          │   │                     │   │            │    │   │
+│  │   │ SIDEBAR  │   │  CANVAS (MAIN)      │   │   RIGHT    │    │   │
+│  │   │          │   │                     │   │   PANEL    │    │   │
+│  │   │ Agent    │   │ • Identity Input    │   │            │    │   │
+│  │   │ Nav      │   │ • Use Case Editor   │   │ • Live     │    │   │
+│  │   │          │   │ • Template Grid     │   │   Preview  │    │   │
+│  │   │ Workspace│   │ • File Drop Zone    │   │            │    │   │
+│  │   │ Links    │   │ • Skills Registry   │   │ • 4 tabs:  │    │   │
+│  │   │          │   │ • Pipeline View     │   │   SKILL/   │    │   │
+│  │   │ Stats    │   │ • Model Config      │   │   AGENTS/  │    │   │
+│  │   │          │   │ • Feature Flags     │   │   EVAL/    │    │   │
+│  │   │          │   │                     │   │   LOG      │    │   │
+│  │   └──────────┘   └─────────────────────┘   └────────────┘    │   │
+│  │                                                              │   │
+│  │   ┌──────────────────────────────────────────────────────┐   │   │
+│  │   │                  JavaScript Engine                   │   │   │
+│  │   │                                                      │   │   │
+│  │   │  STATE      TEMPLATES    BUILD_ENGINE    FILE_GEN    │   │   │
+│  │   │  {agents,   {react,      validate()      Blob API    │   │   │
+│  │   │   files,    supervisor,  build()         URL.create  │   │   │
+│  │   │   template, rag, ...}    finishBuild()   ObjectURL() │   │   │
+│  │   │   building}              downloadPkg()               │   │   │
+│  │   │                                                      │   │   │
+│  │   └──────────────────────────────────────────────────────┘   │   │
+│  └──────────────────────────────────────────────────────────────┘   │
 │                                                                     │
-└──────────────────────────────────────────────────────────────────── ┘
+└─────────────────────────────────────────────────────────────────────┘
                                 │
-                    User clicks "Download"
+                     User clicks "Download"
                                 │
                                 ▼
               ┌──────────────────────────────┐

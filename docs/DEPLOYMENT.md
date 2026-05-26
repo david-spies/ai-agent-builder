@@ -2,7 +2,7 @@
 # Ai-Agent Builder · Documentation
 
 version: 1.0.0
-generated: 2025-05-04
+generated: 2026-05-04
 
 ---
 

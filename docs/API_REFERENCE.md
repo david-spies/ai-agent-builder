@@ -2,7 +2,7 @@
 # Ai-Agent Builder · Documentation
 
 version: 1.0.0
-generated: 2025-05-04
+generated: 2026-05-04
 
 ---
 
@@ -700,3 +700,124 @@ AGENT_KILL_SWITCH=false             # Set true to suspend all agents immediately
 | `500` | Agent error (unhandled exception) |
 | `503` | Agent suspended (kill switch active) |
 | `504` | Agent timeout (wall-clock limit exceeded) |
+
+---
+
+## on_fail Frontmatter Reference (Added in v1.2.0)
+
+### Overview
+
+Skill-level inline error handling. When present in SKILL.md frontmatter, these keys
+override `ERROR_POLICY.md` for that specific skill only. All other skills continue
+to use `ERROR_POLICY.md` as their error governance.
+
+**Precedence rule**: `on_fail` (skill) → `ERROR_POLICY.md fallback_chains` → `ERROR_POLICY.md global` → circuit breaker
+
+### Frontmatter Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `on_fail` | string | — (use ERROR_POLICY.md) | Primary fallback skill invoked after `retry_count` retries exhausted on any error |
+| `on_empty_result` | string | same as on_fail | Fallback invoked when skill succeeds but returns zero results |
+| `on_timeout` | string | same as on_fail | Fallback invoked when wall-clock limit is exceeded |
+| `retry_count` | integer | `2` | Number of retries before invoking `on_fail`. Range: 0–10. |
+
+### Valid `on_fail` Values
+
+```
+reasoning-only.md         Reserved — degrade to LLM reasoning without RAG/tools
+hitl-gate                 Reserved — invoke GATE.md HITL checkpoint
+general-assistant         Reserved — fall back to unconstrained general LLM response
+<skill-name>.md           Any .md file in .agents/skills/ directory
+```
+
+### Example Configurations
+
+```yaml
+# RAG skill — degrade gracefully on any failure
+---
+name: rag-retrieval
+on_fail: reasoning-only.md
+on_empty_result: hitl-gate
+on_timeout: reasoning-only.md
+retry_count: 3
+---
+
+# Security audit — never silently degrade; always escalate to human
+---
+name: security-audit
+on_fail: llm-only-security-review.md
+on_empty_result: hitl-gate
+on_timeout: llm-only-security-review.md
+retry_count: 2
+---
+
+# Incident response — escalate immediately; no retry delay in production outage
+---
+name: incident-response
+on_fail: hitl-gate
+on_empty_result: reasoning-only.md
+on_timeout: hitl-gate
+retry_count: 1
+---
+
+# Code review — degrade to deterministic lint if LLM review fails
+---
+name: code-review
+on_fail: basic-lint-only.md
+on_empty_result: hitl-gate
+on_timeout: basic-lint-only.md
+retry_count: 2
+---
+```
+
+### Interaction with ERROR_POLICY.md
+
+When `on_fail` is set, the runner applies this decision tree:
+
+```
+Skill fails
+    │
+    ├── retries_remaining > 0?
+    │   YES → retry with backoff → loop
+    │   NO  → continue below
+    │
+    ├── error_type == empty_result AND on_empty_result set?
+    │   YES → invoke on_empty_result target
+    │
+    ├── error_type == timeout AND on_timeout set?
+    │   YES → invoke on_timeout target
+    │
+    ├── on_fail set?
+    │   YES → invoke on_fail target (overrides ERROR_POLICY.md fallback_chain)
+    │
+    └── on_fail NOT set?
+        └── use ERROR_POLICY.md fallback_chain for this skill (global policy)
+```
+
+**Level 4 FATAL errors** (auth failure, kill switch, budget ceiling) bypass `on_fail`
+entirely and halt immediately — these are non-recoverable by design.
+
+### Validation Rules (enforced by validate.sh)
+
+```
+on_fail target:        must be a reserved value OR exist in .agents/skills/
+on_empty_result:       same rules as on_fail
+on_timeout:            same rules as on_fail
+retry_count:           integer, 0–10
+hitl-gate reference:   logic/GATE.md must exist in package (WARNING if missing)
+```
+
+### Audit Events Generated
+
+| Event | When |
+|---|---|
+| `skill_retry` | Each retry attempt (within retry_count) |
+| `skill_on_fail_invoked` | on_fail target invoked after retries exhausted |
+| `skill_on_empty_invoked` | on_empty_result target invoked |
+| `skill_on_timeout_invoked` | on_timeout target invoked |
+| `skill_fallback_resolved` | Fallback skill completed successfully |
+| `skill_fallback_failed` | Fallback also failed — escalating to next level |
+
+All events include `precedence: "skill-level"` and `error_policy_overridden: true`
+to distinguish from global ERROR_POLICY.md-governed fallbacks in audit reports.
