@@ -99,3 +99,48 @@ PATCH — Bug fixes, UI improvements, documentation updates
 - `references/permissions.md` — GATE approval roles and SEQUENCE budget impact documented
 - `tests/unit/builder.test.js` — logic component constant tests added
 - `tests/integration/e2e.test.js` — logic/ directory existence and structure tests added
+
+---
+
+## [1.2.0] — 2025-05-04
+
+### Added — Inline on_fail Error Handling
+
+- `on_fail` frontmatter key in SKILL.md — primary fallback skill after retries exhausted
+- `on_empty_result` frontmatter key — specific fallback when skill returns zero results
+- `on_timeout` frontmatter key — specific fallback when wall-clock limit exceeded
+- `retry_count` frontmatter key — retries before invoking on_fail (default: 2, range: 0–10)
+
+### Precedence Rule
+Skill-level `on_fail` overrides `ERROR_POLICY.md` for that specific skill only.
+All other skills continue to use `ERROR_POLICY.md` as their error governance.
+Order: `on_fail` (skill) → `ERROR_POLICY.md fallback_chains` → circuit breaker.
+
+### Builder UI Changes
+- New "Inline Error Handling" card in Model Configuration section of canvas
+- Four new config fields: on_fail, on_empty_result, on_timeout, retry_count
+- Precedence rule display box in the error handling card
+- Live SKILL.md preview now shows all four on_fail fields in frontmatter
+- All four fields sync to live preview in real time via change event listeners
+- `doValidate()` now checks on_fail target references, hitl-gate/GATE cross-check,
+  retry_count: 0 warning, and no-fallback-policy warning when both ERROR_POLICY
+  and on_fail are unconfigured
+
+### Skill Files Updated
+All 8 skill files updated with skill-appropriate on_fail defaults:
+- `code-review.md`: on_fail=basic-lint-only.md, on_empty_result=hitl-gate
+- `security-audit.md`: on_fail=llm-only-security-review.md, on_empty_result=hitl-gate
+- `rag-retrieval.md`: on_fail=reasoning-only.md, on_empty_result=hitl-gate, retry_count=3
+- `sprint-planner.md`: on_fail=hitl-gate (never silently degrade planning)
+- `data-validator.md`: on_fail=reasoning-only.md
+- `incident-response.md`: on_fail=hitl-gate, retry_count=1 (urgency)
+- `.agents/skills/SKILL.md`: on_fail=reasoning-only.md
+- `SKILL.md` (root): on_fail=reasoning-only.md
+
+### Documentation Updated
+- `logic/ERROR_POLICY.md`: full on_fail precedence section, semantics, missing key behavior table
+- `scripts/validate.sh`: on_fail target validation, hitl-gate/GATE cross-check, retry_count range check
+- `references/audit-trails.md`: 6 new on_fail audit event types with schema extension
+- `docs/API_REFERENCE.md`: complete on_fail frontmatter reference with decision tree
+- `agents/security/INSTRUCTIONS.md`: on_fail security review checklist and severity table
+- `agents/worker/INSTRUCTIONS.md`: on_fail generation rules and selection-by-skill-type table
