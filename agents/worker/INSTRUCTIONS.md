@@ -159,3 +159,55 @@ Flag the following for Security Officer review:
 - ERROR_POLICY.md with L4 FATAL that has retry_count > 0 (L4 must never retry)
 - DATA_MAP.md with transform expressions that attempt string concatenation of user input into commands
 - routing-manifest.json where a target_skill is not in skill_registry[] (referential integrity)
+
+---
+
+## on_fail Frontmatter Generation (Added in v1.2.0)
+
+When generating SKILL.md files, include `on_fail` frontmatter keys based on the
+skill's domain and risk profile. Follow these selection rules:
+
+### on_fail Selection by Skill Type
+
+| Skill Type | on_fail | on_empty_result | on_timeout | retry_count |
+|---|---|---|---|---|
+| RAG / knowledge retrieval | reasoning-only.md | hitl-gate | reasoning-only.md | 3 |
+| Security audit | llm-only-security-review.md | hitl-gate | llm-only-security-review.md | 2 |
+| Code review | basic-lint-only.md | hitl-gate | basic-lint-only.md | 2 |
+| Incident response | hitl-gate | reasoning-only.md | hitl-gate | 1 |
+| Sprint planning | hitl-gate | hitl-gate | reasoning-only.md | 1 |
+| Data validation | reasoning-only.md | reasoning-only.md | reasoning-only.md | 2 |
+| General / custom | reasoning-only.md | hitl-gate | reasoning-only.md | 2 |
+
+### Generation Rules
+
+1. Always include all four keys (`on_fail`, `on_empty_result`, `on_timeout`, `retry_count`)
+   in every SKILL.md frontmatter — never omit them unless the user explicitly requests
+   ERROR_POLICY.md governance only.
+
+2. Place on_fail keys immediately after `max_lines:` in the frontmatter block:
+   ```yaml
+   max_lines: 200
+   on_fail: reasoning-only.md
+   on_empty_result: hitl-gate
+   on_timeout: reasoning-only.md
+   retry_count: 2
+   ```
+
+3. Add a `## Error Handling (Inline)` section to the skill file documenting
+   the on_fail configuration and the precedence rule:
+   ```
+   ## Error Handling (Inline)
+   on_fail:          reasoning-only.md
+   on_empty_result:  hitl-gate
+   on_timeout:       reasoning-only.md
+   retry_count:      2
+
+   Precedence: this skill's on_fail overrides ERROR_POLICY.md for this skill only.
+   ```
+
+4. Add to `## Constraints`:
+   `- on_fail: "X" overrides ERROR_POLICY.md for this skill (skill-level precedence)`
+
+5. Security flag for Security Officer review: if `on_fail` degrades a security-
+   sensitive skill to `reasoning-only.md`, flag it as HIGH for Security Officer review.

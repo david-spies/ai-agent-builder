@@ -228,3 +228,39 @@ When logic/ directory files are present in the build package, extend the review 
 | Checkpoint to world-readable path | MEDIUM |
 | Fallback skill not in skill_registry | MEDIUM |
 | routing-manifest.json missing components | LOW |
+
+---
+
+## on_fail Frontmatter Security Review (Added in v1.2.0)
+
+When skill files contain `on_fail`, `on_empty_result`, or `on_timeout` frontmatter keys,
+extend the review checklist with the following checks.
+
+### on_fail Review Checklist
+
+- [ ] `on_fail` target exists in `.agents/skills/` OR is a reserved value
+      (reasoning-only.md, hitl-gate, general-assistant)
+- [ ] `on_fail: hitl-gate` — verify `logic/GATE.md` is present in package
+- [ ] `on_fail: reasoning-only.md` on a security-sensitive skill — WARN: degrading
+      a security audit to reasoning-only may produce unchecked output. Recommend
+      `on_fail: llm-only-security-review.md` or `hitl-gate` instead.
+- [ ] `on_empty_result` target makes logical sense for this skill type:
+      - RAG skill + on_empty_result: hitl-gate → correct (zero results needs human)
+      - Data validator + on_empty_result: reasoning-only → acceptable (no data = warn)
+      - Security audit + on_empty_result: reasoning-only → HIGH RISK (zero findings
+        should never silently pass without human confirmation)
+- [ ] `retry_count: 0` — WARN: no retry means first transient failure immediately
+      invokes fallback. Confirm this is intentional, not a misconfiguration.
+- [ ] `retry_count` > 5 — WARN: excessive retries may mask a persistent failure and
+      delay time-sensitive escalation (e.g., incident response skills).
+
+### Finding Severity for on_fail Issues
+
+| Issue | Severity |
+|---|---|
+| on_fail target does not exist in .agents/skills/ | HIGH |
+| Security skill degrades to reasoning-only on fail | HIGH |
+| hitl-gate referenced but GATE.md missing | HIGH |
+| retry_count: 0 on latency-sensitive skill without justification | MEDIUM |
+| on_empty_result not set on RAG skill | LOW |
+| retry_count > 5 | LOW |
