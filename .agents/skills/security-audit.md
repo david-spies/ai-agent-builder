@@ -6,6 +6,10 @@ template: security
 model: anthropic/claude-opus-4
 scope: elevated
 max_lines: 200
+on_fail: llm-only-security-review.md
+on_empty_result: hitl-gate
+on_timeout: llm-only-security-review.md
+retry_count: 2
 generated: 2026-05-04
 ---
 

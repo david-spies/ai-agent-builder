@@ -6,6 +6,10 @@ template: react
 model: anthropic/claude-sonnet-4
 scope: read_write
 max_lines: 200
+on_fail: reasoning-only.md
+on_empty_result: reasoning-only.md
+on_timeout: reasoning-only.md
+retry_count: 2
 generated: 2026-05-04
 ---
 

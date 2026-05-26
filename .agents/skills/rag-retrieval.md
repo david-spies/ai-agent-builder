@@ -6,6 +6,10 @@ template: rag
 model: anthropic/claude-sonnet-4
 scope: read_only
 max_lines: 200
+on_fail: reasoning-only.md
+on_empty_result: hitl-gate
+on_timeout: reasoning-only.md
+retry_count: 3
 generated: 2026-05-04
 ---
 

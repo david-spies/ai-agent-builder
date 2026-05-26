@@ -6,6 +6,10 @@ template: security
 model: anthropic/claude-sonnet-4
 scope: read_only
 max_lines: 200
+on_fail: basic-lint-only.md
+on_empty_result: hitl-gate
+on_timeout: basic-lint-only.md
+retry_count: 2
 generated: 2026-05-04
 ---
 

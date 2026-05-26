@@ -6,6 +6,10 @@ template: supervisor
 model: anthropic/claude-sonnet-4
 scope: read_write
 max_lines: 200
+on_fail: hitl-gate
+on_empty_result: hitl-gate
+on_timeout: reasoning-only.md
+retry_count: 1
 generated: 2026-05-04
 ---
 

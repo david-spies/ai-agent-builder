@@ -6,7 +6,11 @@ template: supervisor
 model: anthropic/claude-sonnet-4
 scope: elevated
 max_lines: 200
-generated: 2025-05-04
+on_fail: hitl-gate
+on_empty_result: reasoning-only.md
+on_timeout: hitl-gate
+retry_count: 1
+generated: 2026-05-04
 ---
 
 # Overview
