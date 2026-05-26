@@ -773,3 +773,228 @@ describe('Logic Component — Integration: Architect selection rules', () => {
     expect(shouldEnableRouter('Review Python files', ['.py'])).toBe(false);
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE: on_fail Inline Error Handling
+// ══════════════════════════════════════════════════════════════════════════
+
+const VALID_ON_FAIL_TARGETS = new Set([
+  'reasoning-only.md',
+  'hitl-gate',
+  'general-assistant',
+  'basic-lint-only.md',
+  'llm-only-security-review.md',
+  'code-review.md',
+  'security-audit.md',
+  'rag-retrieval.md',
+  'sprint-planner.md',
+  'data-validator.md',
+  'incident-response.md',
+]);
+
+const SKILL_ON_FAIL_DEFAULTS = {
+  'code-review':      { on_fail: 'basic-lint-only.md',            on_empty: 'hitl-gate', retry_count: 2 },
+  'security-audit':   { on_fail: 'llm-only-security-review.md',  on_empty: 'hitl-gate', retry_count: 2 },
+  'rag-retrieval':    { on_fail: 'reasoning-only.md',             on_empty: 'hitl-gate', retry_count: 3 },
+  'sprint-planner':   { on_fail: 'hitl-gate',                     on_empty: 'hitl-gate', retry_count: 1 },
+  'data-validator':   { on_fail: 'reasoning-only.md',             on_empty: 'reasoning-only.md', retry_count: 2 },
+  'incident-response':{ on_fail: 'hitl-gate',                     on_empty: 'reasoning-only.md', retry_count: 1 },
+};
+
+function isValidOnFailTarget(target) {
+  if (!target) return true; // empty = use ERROR_POLICY.md default — valid
+  return VALID_ON_FAIL_TARGETS.has(target);
+}
+
+function validateRetryCount(count) {
+  const n = parseInt(count);
+  return Number.isInteger(n) && n >= 0 && n <= 10;
+}
+
+function resolveOnFail(skill, errorType, skillOnFail, skillOnEmpty, skillOnTimeout, errorPolicy) {
+  // Precedence: skill-level → ERROR_POLICY.md
+  if (errorType === 'empty_result' && skillOnEmpty) return { target: skillOnEmpty, source: 'skill-level' };
+  if (errorType === 'timeout'      && skillOnTimeout) return { target: skillOnTimeout, source: 'skill-level' };
+  if (skillOnFail) return { target: skillOnFail, source: 'skill-level' };
+  if (errorPolicy?.fallback_chains?.[skill]) return { target: errorPolicy.fallback_chains[skill][0], source: 'global-policy' };
+  return { target: null, source: 'none' };
+}
+
+describe('on_fail Target Validation', () => {
+  test('reserved values are valid', () => {
+    expect(isValidOnFailTarget('reasoning-only.md')).toBe(true);
+    expect(isValidOnFailTarget('hitl-gate')).toBe(true);
+    expect(isValidOnFailTarget('general-assistant')).toBe(true);
+  });
+
+  test('empty string is valid (means use ERROR_POLICY.md)', () => {
+    expect(isValidOnFailTarget('')).toBe(true);
+    expect(isValidOnFailTarget(undefined)).toBe(true);
+  });
+
+  test('known skill files are valid', () => {
+    expect(isValidOnFailTarget('basic-lint-only.md')).toBe(true);
+    expect(isValidOnFailTarget('llm-only-security-review.md')).toBe(true);
+  });
+
+  test('unknown targets are invalid', () => {
+    expect(isValidOnFailTarget('nonexistent-skill.md')).toBe(false);
+    expect(isValidOnFailTarget('made-up.md')).toBe(false);
+  });
+});
+
+describe('retry_count Validation', () => {
+  test('valid counts 0-10', () => {
+    [0, 1, 2, 3, 5, 10].forEach(n => expect(validateRetryCount(n)).toBe(true));
+  });
+
+  test('negative numbers are invalid', () => {
+    expect(validateRetryCount(-1)).toBe(false);
+    expect(validateRetryCount(-100)).toBe(false);
+  });
+
+  test('numbers above 10 are invalid', () => {
+    expect(validateRetryCount(11)).toBe(false);
+    expect(validateRetryCount(100)).toBe(false);
+  });
+
+  test('non-integers are invalid', () => {
+    expect(validateRetryCount(1.5)).toBe(false);
+    expect(validateRetryCount('abc')).toBe(false);
+  });
+
+  test('string integers are parsed correctly', () => {
+    expect(validateRetryCount('2')).toBe(true);
+    expect(validateRetryCount('0')).toBe(true);
+  });
+});
+
+describe('on_fail Precedence Resolution', () => {
+  const globalPolicy = {
+    fallback_chains: {
+      'rag-retrieval.md': ['reasoning-only.md', 'gate.md'],
+      'code-review.md':   ['basic-lint-only.md'],
+    }
+  };
+
+  test('skill-level on_fail overrides global policy', () => {
+    const result = resolveOnFail(
+      'rag-retrieval.md', 'error',
+      'hitl-gate', '', '', globalPolicy
+    );
+    expect(result.target).toBe('hitl-gate');
+    expect(result.source).toBe('skill-level');
+  });
+
+  test('on_empty_result is used for empty_result errors', () => {
+    const result = resolveOnFail(
+      'rag-retrieval.md', 'empty_result',
+      'reasoning-only.md', 'hitl-gate', '', globalPolicy
+    );
+    expect(result.target).toBe('hitl-gate');
+    expect(result.source).toBe('skill-level');
+  });
+
+  test('on_timeout is used for timeout errors', () => {
+    const result = resolveOnFail(
+      'rag-retrieval.md', 'timeout',
+      'reasoning-only.md', '', 'hitl-gate', globalPolicy
+    );
+    expect(result.target).toBe('hitl-gate');
+    expect(result.source).toBe('skill-level');
+  });
+
+  test('falls through to on_fail when specific type key not set', () => {
+    const result = resolveOnFail(
+      'rag-retrieval.md', 'empty_result',
+      'reasoning-only.md', '', '', globalPolicy // no on_empty set
+    );
+    expect(result.target).toBe('reasoning-only.md');
+    expect(result.source).toBe('skill-level');
+  });
+
+  test('falls through to global policy when no skill-level keys set', () => {
+    const result = resolveOnFail(
+      'rag-retrieval.md', 'error',
+      '', '', '', globalPolicy
+    );
+    expect(result.target).toBe('reasoning-only.md'); // first in chain
+    expect(result.source).toBe('global-policy');
+  });
+
+  test('returns null source when no policy at all', () => {
+    const result = resolveOnFail('unknown-skill.md', 'error', '', '', '', {});
+    expect(result.target).toBeNull();
+    expect(result.source).toBe('none');
+  });
+});
+
+describe('Skill-Specific on_fail Defaults', () => {
+  test.each(Object.entries(SKILL_ON_FAIL_DEFAULTS))(
+    '%s has a valid on_fail target', (skill, cfg) => {
+      expect(isValidOnFailTarget(cfg.on_fail)).toBe(true);
+    }
+  );
+
+  test.each(Object.entries(SKILL_ON_FAIL_DEFAULTS))(
+    '%s has a valid on_empty target', (skill, cfg) => {
+      expect(isValidOnFailTarget(cfg.on_empty)).toBe(true);
+    }
+  );
+
+  test.each(Object.entries(SKILL_ON_FAIL_DEFAULTS))(
+    '%s has a valid retry_count', (skill, cfg) => {
+      expect(validateRetryCount(cfg.retry_count)).toBe(true);
+    }
+  );
+
+  test('incident-response has retry_count 1 (urgency)', () => {
+    expect(SKILL_ON_FAIL_DEFAULTS['incident-response'].retry_count).toBe(1);
+  });
+
+  test('rag-retrieval has retry_count 3 (retrieval worth retrying)', () => {
+    expect(SKILL_ON_FAIL_DEFAULTS['rag-retrieval'].retry_count).toBe(3);
+  });
+
+  test('security-audit never degrades to reasoning-only on fail', () => {
+    const cfg = SKILL_ON_FAIL_DEFAULTS['security-audit'];
+    expect(cfg.on_fail).not.toBe('reasoning-only.md');
+  });
+
+  test('sprint-planner escalates to HITL on fail (never silently degrades)', () => {
+    expect(SKILL_ON_FAIL_DEFAULTS['sprint-planner'].on_fail).toBe('hitl-gate');
+  });
+
+  test('incident-response escalates to HITL on fail (urgency)', () => {
+    expect(SKILL_ON_FAIL_DEFAULTS['incident-response'].on_fail).toBe('hitl-gate');
+  });
+});
+
+describe('on_fail + GATE cross-check', () => {
+  function checkGateCrossRef(onFail, onEmpty, onTimeout, gateEnabled) {
+    const refsHitl = [onFail, onEmpty, onTimeout].some(v => v === 'hitl-gate');
+    if (refsHitl && !gateEnabled) return { valid: false, warn: 'hitl-gate referenced but GATE.md not enabled' };
+    return { valid: true };
+  }
+
+  test('hitl-gate + GATE enabled = valid', () => {
+    const r = checkGateCrossRef('hitl-gate', '', '', true);
+    expect(r.valid).toBe(true);
+  });
+
+  test('hitl-gate + GATE disabled = warning', () => {
+    const r = checkGateCrossRef('hitl-gate', '', '', false);
+    expect(r.valid).toBe(false);
+    expect(r.warn).toContain('hitl-gate');
+  });
+
+  test('no hitl-gate + GATE disabled = valid', () => {
+    const r = checkGateCrossRef('reasoning-only.md', 'reasoning-only.md', '', false);
+    expect(r.valid).toBe(true);
+  });
+
+  test('on_empty hitl-gate + GATE disabled = warning', () => {
+    const r = checkGateCrossRef('reasoning-only.md', 'hitl-gate', '', false);
+    expect(r.valid).toBe(false);
+  });
+});

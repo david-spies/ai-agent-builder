@@ -819,3 +819,270 @@ describe('Logic ↔ Skill Cross-Referential Integrity', () => {
     expect(validate.toLowerCase()).toContain('logic');
   });
 });
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE 10: on_fail Frontmatter — Skill File Integration
+// ══════════════════════════════════════════════════════════════════════════
+describe('on_fail Frontmatter in Skill Files', () => {
+
+  const skillFiles = [
+    { file: '.agents/skills/code-review.md',      expected_on_fail: 'basic-lint-only.md',           expected_retry: '2' },
+    { file: '.agents/skills/security-audit.md',   expected_on_fail: 'llm-only-security-review.md',  expected_retry: '2' },
+    { file: '.agents/skills/rag-retrieval.md',    expected_on_fail: 'reasoning-only.md',             expected_retry: '3' },
+    { file: '.agents/skills/sprint-planner.md',   expected_on_fail: 'hitl-gate',                     expected_retry: '1' },
+    { file: '.agents/skills/data-validator.md',   expected_on_fail: 'reasoning-only.md',             expected_retry: '2' },
+    { file: '.agents/skills/incident-response.md',expected_on_fail: 'hitl-gate',                     expected_retry: '1' },
+  ];
+
+  describe('All skill files contain on_fail frontmatter', () => {
+    test.each(skillFiles)('$file has on_fail key', ({ file }) => {
+      const content = readFile(file);
+      expect(content).toMatch(/^on_fail:/m);
+    });
+
+    test.each(skillFiles)('$file has on_empty_result key', ({ file }) => {
+      const content = readFile(file);
+      expect(content).toMatch(/^on_empty_result:/m);
+    });
+
+    test.each(skillFiles)('$file has on_timeout key', ({ file }) => {
+      const content = readFile(file);
+      expect(content).toMatch(/^on_timeout:/m);
+    });
+
+    test.each(skillFiles)('$file has retry_count key', ({ file }) => {
+      const content = readFile(file);
+      expect(content).toMatch(/^retry_count:/m);
+    });
+  });
+
+  describe('on_fail values match expected defaults', () => {
+    test.each(skillFiles)('$file on_fail = $expected_on_fail', ({ file, expected_on_fail }) => {
+      const content = readFile(file);
+      const match = content.match(/^on_fail:\s*(.+)/m);
+      expect(match).toBeTruthy();
+      expect(match[1].trim()).toBe(expected_on_fail);
+    });
+
+    test.each(skillFiles)('$file retry_count = $expected_retry', ({ file, expected_retry }) => {
+      const content = readFile(file);
+      const match = content.match(/^retry_count:\s*(\d+)/m);
+      expect(match).toBeTruthy();
+      expect(match[1].trim()).toBe(expected_retry);
+    });
+  });
+
+  describe('on_fail position in frontmatter', () => {
+    test.each(skillFiles)('$file — on_fail appears after max_lines', ({ file }) => {
+      const content = readFile(file);
+      const maxLinesIdx = content.indexOf('max_lines:');
+      const onFailIdx   = content.indexOf('on_fail:');
+      expect(maxLinesIdx).toBeGreaterThan(0);
+      expect(onFailIdx).toBeGreaterThan(maxLinesIdx);
+    });
+
+    test.each(skillFiles)('$file — on_fail appears inside frontmatter (before first ---)', ({ file }) => {
+      const content = readFile(file);
+      // Frontmatter ends at second ---
+      const firstDash = content.indexOf('---');
+      const secondDash = content.indexOf('---', firstDash + 3);
+      const onFailIdx = content.indexOf('on_fail:');
+      expect(onFailIdx).toBeGreaterThan(firstDash);
+      expect(onFailIdx).toBeLessThan(secondDash);
+    });
+  });
+
+  describe('Security-sensitive skill on_fail constraints', () => {
+    test('security-audit does NOT use reasoning-only.md as on_fail', () => {
+      const content = readFile('.agents/skills/security-audit.md');
+      const match = content.match(/^on_fail:\s*(.+)/m);
+      expect(match).toBeTruthy();
+      expect(match[1].trim()).not.toBe('reasoning-only.md');
+    });
+
+    test('incident-response uses hitl-gate on_fail (never silent degrade)', () => {
+      const content = readFile('.agents/skills/incident-response.md');
+      const match = content.match(/^on_fail:\s*(.+)/m);
+      expect(match).toBeTruthy();
+      expect(match[1].trim()).toBe('hitl-gate');
+    });
+
+    test('sprint-planner uses hitl-gate on_fail', () => {
+      const content = readFile('.agents/skills/sprint-planner.md');
+      const match = content.match(/^on_fail:\s*(.+)/m);
+      expect(match).toBeTruthy();
+      expect(match[1].trim()).toBe('hitl-gate');
+    });
+
+    test('rag-retrieval retry_count is 3 (retrieval is worth retrying)', () => {
+      const content = readFile('.agents/skills/rag-retrieval.md');
+      const match = content.match(/^retry_count:\s*(\d+)/m);
+      expect(match).toBeTruthy();
+      expect(parseInt(match[1])).toBe(3);
+    });
+
+    test('incident-response retry_count is 1 (urgency — fail fast)', () => {
+      const content = readFile('.agents/skills/incident-response.md');
+      const match = content.match(/^retry_count:\s*(\d+)/m);
+      expect(match).toBeTruthy();
+      expect(parseInt(match[1])).toBe(1);
+    });
+  });
+
+  describe('on_fail retry_count validity', () => {
+    test.each(skillFiles)('$file retry_count is integer 0-10', ({ file }) => {
+      const content = readFile(file);
+      const match = content.match(/^retry_count:\s*(\d+)/m);
+      expect(match).toBeTruthy();
+      const n = parseInt(match[1]);
+      expect(Number.isInteger(n)).toBe(true);
+      expect(n).toBeGreaterThanOrEqual(0);
+      expect(n).toBeLessThanOrEqual(10);
+    });
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE 11: on_fail — Builder HTML Integration
+// ══════════════════════════════════════════════════════════════════════════
+describe('on_fail — Builder HTML Integration', () => {
+  let html;
+
+  beforeAll(() => {
+    html = readFile('ai-agent-builder.html');
+  });
+
+  test('cfg-on-fail select element exists', () => {
+    expect(html).toContain('id="cfg-on-fail"');
+  });
+
+  test('cfg-on-empty select element exists', () => {
+    expect(html).toContain('id="cfg-on-empty"');
+  });
+
+  test('cfg-on-timeout select element exists', () => {
+    expect(html).toContain('id="cfg-on-timeout"');
+  });
+
+  test('cfg-retry-count select element exists', () => {
+    expect(html).toContain('id="cfg-retry-count"');
+  });
+
+  test('live preview has out-on-fail element', () => {
+    expect(html).toContain('id="out-on-fail"');
+  });
+
+  test('live preview has out-on-empty element', () => {
+    expect(html).toContain('id="out-on-empty"');
+  });
+
+  test('live preview has out-on-timeout element', () => {
+    expect(html).toContain('id="out-on-timeout"');
+  });
+
+  test('live preview has out-retry element', () => {
+    expect(html).toContain('id="out-retry"');
+  });
+
+  test('change event listener syncs on_fail fields', () => {
+    expect(html).toContain("'cfg-on-fail'");
+    expect(html).toContain("'out-on-fail'");
+  });
+
+  test('reasoning-only.md is an available on_fail option', () => {
+    expect(html).toContain('reasoning-only.md');
+  });
+
+  test('hitl-gate is an available on_fail option', () => {
+    const select = html.match(/id="cfg-on-fail"[\s\S]{0,400}/)?.[0] || '';
+    expect(select).toContain('hitl-gate');
+  });
+
+  test('Inline Error Handling card is present', () => {
+    expect(html).toContain('Inline Error Handling');
+  });
+
+  test('precedence rule is displayed in UI', () => {
+    expect(html).toContain('PRECEDENCE RULE');
+    expect(html).toContain('ERROR_POLICY.md');
+  });
+
+  test('downloadPackage reads cfg-on-fail', () => {
+    const script = html.match(/<script>([\s\S]+?)<\/script>\s*<\/body>/)?.[1] || '';
+    expect(script).toContain("'cfg-on-fail'");
+    expect(script).toContain('onFailBlock');
+    expect(script).toContain('onFailConstraint');
+  });
+
+  test('doValidate checks on_fail configuration', () => {
+    const script = html.match(/<script>([\s\S]+?)<\/script>\s*<\/body>/)?.[1] || '';
+    expect(script).toContain('cfg-on-fail');
+    expect(script).toContain('retry_count');
+    expect(script).toContain('No fallback policy');
+  });
+});
+
+// ══════════════════════════════════════════════════════════════════════════
+// TEST SUITE 12: on_fail — Documentation Coverage
+// ══════════════════════════════════════════════════════════════════════════
+describe('on_fail — Documentation Coverage', () => {
+
+  test('ERROR_POLICY.md documents on_fail precedence rule', () => {
+    const content = readFile('logic/ERROR_POLICY.md');
+    expect(content).toContain('on_fail');
+    expect(content).toContain('Precedence');
+    expect(content).toContain('skill-level');
+  });
+
+  test('ERROR_POLICY.md documents on_empty_result semantics', () => {
+    const content = readFile('logic/ERROR_POLICY.md');
+    expect(content).toContain('on_empty_result');
+  });
+
+  test('API_REFERENCE.md has on_fail section', () => {
+    const content = readFile('docs/API_REFERENCE.md');
+    expect(content).toContain('on_fail');
+    expect(content).toContain('on_empty_result');
+    expect(content).toContain('on_timeout');
+    expect(content).toContain('retry_count');
+  });
+
+  test('API_REFERENCE.md documents precedence decision tree', () => {
+    const content = readFile('docs/API_REFERENCE.md');
+    expect(content).toContain('Precedence');
+    expect(content).toContain('ERROR_POLICY.md');
+  });
+
+  test('audit-trails.md has on_fail event types', () => {
+    const content = readFile('references/audit-trails.md');
+    expect(content).toContain('skill_on_fail_invoked');
+    expect(content).toContain('skill_on_empty_invoked');
+    expect(content).toContain('skill_on_timeout_invoked');
+  });
+
+  test('validate.sh checks on_fail targets', () => {
+    const content = readFile('scripts/validate.sh');
+    expect(content).toContain('on_fail');
+    expect(content).toContain('RESERVED_TARGETS');
+    expect(content).toContain('retry_count');
+  });
+
+  test('security INSTRUCTIONS.md has on_fail review checklist', () => {
+    const content = readFile('agents/security/INSTRUCTIONS.md');
+    expect(content).toContain('on_fail');
+    expect(content).toContain('on_empty_result');
+  });
+
+  test('worker INSTRUCTIONS.md has on_fail generation rules', () => {
+    const content = readFile('agents/worker/INSTRUCTIONS.md');
+    expect(content).toContain('on_fail');
+    expect(content).toContain('retry_count');
+    expect(content).toContain('on_empty_result');
+  });
+
+  test('CHANGELOG.md has v1.2.0 entry', () => {
+    const content = readFile('CHANGELOG.md');
+    expect(content).toContain('[1.2.0]');
+    expect(content).toContain('on_fail');
+  });
+});
