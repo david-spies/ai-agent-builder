@@ -287,3 +287,80 @@ Persistent error patterns written after fatal or recurring failures:
 - ./references/governance.md      ← Alert thresholds and escalation contacts
 - ./MEMORIES.md                   ← Persistent error pattern storage
 - ./.circuit-breaker/             ← Circuit breaker state files (auto-created by runner)
+
+---
+
+## Skill-Level on_fail Precedence (Added in v1.2.0)
+
+Individual SKILL.md files can declare inline error handling via frontmatter keys.
+When present, these keys override this ERROR_POLICY.md for that specific skill.
+
+### Precedence Order
+
+```
+1. skill-level — Skill on_fail (SKILL.md frontmatter)   ← highest priority
+2. ERROR_POLICY.md fallback_chains              ← applies if no on_fail set
+3. ERROR_POLICY.md global policies              ← lowest priority
+4. Circuit breaker                              ← always applies regardless
+```
+
+### Frontmatter Keys
+
+```yaml
+# In any SKILL.md frontmatter:
+on_fail: reasoning-only.md       # Primary fallback skill when any error occurs
+on_empty_result: hitl-gate       # Specific: invoked when result set is empty (RAG returns 0)
+on_timeout: reasoning-only.md    # Specific: invoked when wall-clock limit exceeded
+retry_count: 2                   # How many retries before invoking on_fail (default: 2)
+```
+
+### Key Semantics
+
+**`on_fail`**: Invoked after `retry_count` retries are exhausted on any error type.
+Corresponds to ERROR_POLICY Level 1 (RETRYABLE) and Level 2 (SKILL_FAIL) combined.
+Does NOT override Level 4 (FATAL) — auth failures and kill switch still halt immediately.
+
+**`on_empty_result`**: Invoked specifically when the skill returns a valid response
+but the result set is empty (e.g., RAG retrieval finds 0 chunks, search returns 0 results,
+database query returns 0 rows). This is distinct from an error — the skill succeeded
+but found nothing. Separate from `on_fail` because the correct response to "found nothing"
+often differs from the correct response to "tool crashed."
+
+**`on_timeout`**: Invoked when the skill exceeds `item_timeout_seconds` (from SEQUENCE.md)
+or the global wall-clock limit. Often the correct fallback differs from a crash fallback —
+a timed-out RAG retrieval should degrade to reasoning-only, while a timed-out security
+audit should escalate to HITL rather than silently degrade.
+
+**`retry_count`**: Number of attempts before invoking `on_fail`. Each retry uses the
+same backoff strategy as defined in the matching ERROR_POLICY policy (if one exists),
+or defaults to exponential: 3s → 9s → 27s. Setting retry_count: 0 invokes on_fail
+immediately on first failure with no retry.
+
+### Missing Key Behavior
+
+| Key present? | Behavior |
+|---|---|
+| `on_fail` set | Use on_fail target. ERROR_POLICY.md fallback_chain ignored for this skill. |
+| `on_fail` absent | Use ERROR_POLICY.md fallback_chain for this skill. |
+| `on_empty_result` set | Use on_empty_result for empty results, on_fail for errors. |
+| `on_empty_result` absent | Use on_fail for both errors AND empty results. |
+| `on_timeout` set | Use on_timeout for timeouts, on_fail for other errors. |
+| `on_timeout` absent | Use on_fail for both timeouts AND other errors. |
+| `retry_count` absent | Default: 2 retries before invoking on_fail. |
+
+### validate.sh Checks
+
+The package validator enforces:
+- `on_fail` target must exist in .agents/skills/ OR be a reserved value
+  (reasoning-only.md, hitl-gate, general-assistant)
+- `on_empty_result` and `on_timeout` targets follow the same rule
+- `retry_count` must be a non-negative integer (0–10)
+- If on_fail is "hitl-gate" but GATE.md is not in the package: WARNING
+
+### Reserved on_fail Values (no .md file required)
+
+```
+reasoning-only.md   → Degrade to LLM reasoning without RAG/tools
+hitl-gate           → Pause and invoke GATE.md HITL checkpoint
+general-assistant   → Fall back to unconstrained general LLM response
+```
