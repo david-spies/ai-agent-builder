@@ -6,7 +6,7 @@ template: security
 model: anthropic/claude-opus-4
 scope: elevated
 max_lines: 200
-generated: 2025-05-04
+generated: 2026-05-04
 ---
 
 # Overview
