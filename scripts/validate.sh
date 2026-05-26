@@ -253,3 +253,87 @@ else
   log_info "No logic/ directory found — skipping logic component checks"
   log_info "To add logic components, run the builder and enable them in Feature Flags"
 fi
+
+# ── 8. on_fail frontmatter validation ────────────────────────────────────────
+log_info "Validating on_fail frontmatter keys..."
+
+SKILLS_DIR="${AGENT_DIR}/.agents/skills"
+RESERVED_TARGETS="reasoning-only.md hitl-gate general-assistant"
+
+validate_on_fail_target() {
+  local target="$1"
+  local field="$2"
+  local skill_file="$3"
+
+  # Empty = not set, OK
+  [ -z "$target" ] && return 0
+
+  # Check reserved values
+  if echo "$RESERVED_TARGETS" | grep -qw "$target"; then
+    return 0
+  fi
+
+  # Check skill exists in .agents/skills/
+  if [ -d "$SKILLS_DIR" ] && [ -f "${SKILLS_DIR}/${target}" ]; then
+    return 0
+  fi
+
+  log_warn "Skill file '${target}' referenced in ${field} of ${skill_file} not found in .agents/skills/"
+  return 1
+}
+
+if [ -d "$SKILLS_DIR" ]; then
+  for skill_file in "${SKILLS_DIR}"/*.md; do
+    [ -f "$skill_file" ] || continue
+    skill_name=$(basename "$skill_file")
+
+    # Extract frontmatter values
+    on_fail=$(grep -m1 "^on_fail:" "$skill_file" 2>/dev/null | sed 's/^on_fail: *//' | tr -d '"')
+    on_empty=$(grep -m1 "^on_empty_result:" "$skill_file" 2>/dev/null | sed 's/^on_empty_result: *//' | tr -d '"')
+    on_timeout=$(grep -m1 "^on_timeout:" "$skill_file" 2>/dev/null | sed 's/^on_timeout: *//' | tr -d '"')
+    retry_count=$(grep -m1 "^retry_count:" "$skill_file" 2>/dev/null | sed 's/^retry_count: *//' | tr -d '"')
+
+    if [ -z "$on_fail" ]; then
+      log_info "  ${skill_name}: no on_fail set — uses ERROR_POLICY.md global"
+      continue
+    fi
+
+    # Validate on_fail target
+    validate_on_fail_target "$on_fail" "on_fail" "$skill_name" \
+      && log_ok "  ${skill_name}: on_fail='${on_fail}' ✓" \
+      || ERRORS=$((ERRORS+1))
+
+    # Validate on_empty_result target
+    [ -n "$on_empty" ] && {
+      validate_on_fail_target "$on_empty" "on_empty_result" "$skill_name" \
+        && log_ok "  ${skill_name}: on_empty_result='${on_empty}' ✓" \
+        || ERRORS=$((ERRORS+1))
+    }
+
+    # Validate on_timeout target
+    [ -n "$on_timeout" ] && {
+      validate_on_fail_target "$on_timeout" "on_timeout" "$skill_name" \
+        && log_ok "  ${skill_name}: on_timeout='${on_timeout}' ✓" \
+        || ERRORS=$((ERRORS+1))
+    }
+
+    # Validate retry_count is 0-10
+    if [ -n "$retry_count" ]; then
+      if echo "$retry_count" | grep -qE '^[0-9]+$' && [ "$retry_count" -ge 0 ] && [ "$retry_count" -le 10 ]; then
+        log_ok "  ${skill_name}: retry_count=${retry_count} ✓"
+      else
+        log_err "  ${skill_name}: retry_count='${retry_count}' must be integer 0-10"
+        ERRORS=$((ERRORS+1))
+      fi
+    fi
+
+    # Warn if on_fail=hitl-gate but GATE.md not in package
+    if [ "$on_fail" = "hitl-gate" ] || [ "$on_empty" = "hitl-gate" ] || [ "$on_timeout" = "hitl-gate" ]; then
+      if [ ! -f "${AGENT_DIR}/logic/GATE.md" ]; then
+        log_warn "  ${skill_name}: references hitl-gate but logic/GATE.md not found in package"
+      fi
+    fi
+  done
+else
+  log_info "No .agents/skills/ directory — skipping on_fail validation"
+fi
