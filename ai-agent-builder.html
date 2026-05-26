@@ -667,7 +667,7 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
             </select>
           </div>
           <div class="field">
-            <div class="field-label">Tool Framework</div>
+            <div class="field-label">Framework</div>
             <select class="field-select" id="cfg-framework">
               <option>MCP (Model Context Protocol)</option>
               <option>LangGraph</option>
@@ -675,6 +675,65 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
               <option>AutoGen</option>
               <option>custom</option>
             </select>
+          </div>
+        </div>
+
+        <!-- Error Handling card -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-icon" style="background:rgba(255,82,119,.1)">⚡</div>
+            <div class="card-title">Inline Error Handling</div>
+            <span class="badge badge-red" style="font-size:8px">ON_FAIL</span>
+          </div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--text3);margin-bottom:10px;line-height:1.5">
+            Skill-level fallback overrides global ERROR_POLICY.md for this skill.
+            Leave blank to use ERROR_POLICY.md defaults.
+          </div>
+          <div class="field">
+            <div class="field-label">on_fail — primary fallback skill</div>
+            <select class="field-select" id="cfg-on-fail">
+              <option value="">— use ERROR_POLICY.md default —</option>
+              <option value="reasoning-only.md">reasoning-only.md</option>
+              <option value="hitl-gate">hitl-gate</option>
+              <option value="general-assistant">general-assistant</option>
+              <option value="basic-lint-only.md">basic-lint-only.md</option>
+              <option value="llm-only-security-review.md">llm-only-security-review.md</option>
+              <option value="custom">custom…</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">on_empty_result — zero results fallback</div>
+            <select class="field-select" id="cfg-on-empty">
+              <option value="">— same as on_fail —</option>
+              <option value="hitl-gate">hitl-gate</option>
+              <option value="reasoning-only.md">reasoning-only.md</option>
+              <option value="general-assistant">general-assistant</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">on_timeout — timeout fallback</div>
+            <select class="field-select" id="cfg-on-timeout">
+              <option value="">— same as on_fail —</option>
+              <option value="reasoning-only.md">reasoning-only.md</option>
+              <option value="hitl-gate">hitl-gate</option>
+              <option value="general-assistant">general-assistant</option>
+            </select>
+          </div>
+          <div class="field">
+            <div class="field-label">retry_count — before invoking fallback</div>
+            <select class="field-select" id="cfg-retry-count">
+              <option value="2">2 (default)</option>
+              <option value="0">0 — fail immediately</option>
+              <option value="1">1</option>
+              <option value="3">3</option>
+              <option value="5">5</option>
+            </select>
+          </div>
+          <div style="margin-top:8px;padding:8px 10px;background:var(--surface);border:1px solid var(--border);border-radius:6px">
+            <div style="font-family:var(--mono);font-size:8px;color:var(--text3);letter-spacing:1px;margin-bottom:4px">PRECEDENCE RULE</div>
+            <div style="font-family:var(--mono);font-size:9px;color:var(--text2);line-height:1.6">
+              Skill on_fail → ERROR_POLICY.md fallback_chain → circuit breaker
+            </div>
           </div>
         </div>
 
@@ -809,6 +868,10 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
 <span class="ck">template</span>: <span class="cv" id="out-tpl">none</span>
 <span class="ck">model</span>: <span class="cv" id="out-model">anthropic/claude-sonnet-4</span>
 <span class="ck">max_lines</span>: <span class="cv">200</span>
+<span class="ck">on_fail</span>: <span class="cv" id="out-on-fail">reasoning-only.md</span>
+<span class="ck">on_empty_result</span>: <span class="cv" id="out-on-empty">hitl-gate</span>
+<span class="ck">on_timeout</span>: <span class="cv" id="out-on-timeout">reasoning-only.md</span>
+<span class="ck">retry_count</span>: <span class="cv" id="out-retry">2</span>
 <span class="cc">---
 
 # Overview
@@ -827,6 +890,7 @@ html,body{width:100%;height:100vh;background:var(--bg);color:var(--text);font-fa
 - No hallucinations: ask if unsure
 - .md file takes precedence over training
 - Max 200 lines — heavy data → /references
+- on_fail overrides global ERROR_POLICY.md for this skill
 - Output format: JSON { result, confidence, sources }
 
 ## References
@@ -1481,6 +1545,24 @@ function updateAgentsCode() {}
 
 document.addEventListener('change', e => {
   if (e.target.id === 'cfg-model') document.getElementById('out-model').textContent = e.target.value;
+
+  // Sync on_fail fields to live SKILL.md preview
+  const onFailMap = {
+    'cfg-on-fail':    'out-on-fail',
+    'cfg-on-empty':   'out-on-empty',
+    'cfg-on-timeout': 'out-on-timeout',
+    'cfg-retry-count':'out-retry',
+  };
+  if (onFailMap[e.target.id]) {
+    const el = document.getElementById(onFailMap[e.target.id]);
+    if (el) {
+      const val = e.target.value || (e.target.id === 'cfg-on-fail' ? '— ERROR_POLICY.md default —' : '— same as on_fail —');
+      el.textContent = val;
+      // If no on_fail selected, dim the frontmatter lines
+      const isEmpty = !e.target.value;
+      el.style.opacity = isEmpty ? '0.4' : '1';
+    }
+  }
 });
 
 // ══════════════ FILES ══════════════
@@ -1867,6 +1949,38 @@ function doValidate() {
     items.push({ok:false, warn:true, msg:`<strong>ROUTER.md:</strong> deterministic routing enabled but no template selected — routing targets may be undefined`});
   }
 
+  // ── on_fail cross-checks ─────────────────────────────────────────────────
+  const onFail      = document.getElementById('cfg-on-fail')?.value || '';
+  const onEmpty     = document.getElementById('cfg-on-empty')?.value || '';
+  const onTimeout   = document.getElementById('cfg-on-timeout')?.value || '';
+  const retryCount  = parseInt(document.getElementById('cfg-retry-count')?.value || '2');
+
+  if (onFail) {
+    items.push({ok:true, msg:`<strong>on_fail:</strong> "${onFail}" — skill-level override active (takes precedence over ERROR_POLICY.md)`});
+    // Warn if on_fail is hitl-gate but GATE feature flag is off
+    if (onFail === 'hitl-gate' && !gateOn) {
+      items.push({ok:false, warn:true, msg:`<strong>on_fail conflict:</strong> on_fail points to hitl-gate but GATE.md feature flag is off — enable GATE or change on_fail`});
+    }
+  } else {
+    items.push({ok:true, msg:`<strong>on_fail:</strong> not set — ERROR_POLICY.md global policy governs this skill`});
+  }
+
+  if (onEmpty) {
+    items.push({ok:true, msg:`<strong>on_empty_result:</strong> "${onEmpty}" — zero-results specific fallback configured`});
+  }
+
+  if (retryCount === 0) {
+    items.push({ok:false, warn:true, msg:`<strong>retry_count: 0</strong> — skill will invoke on_fail immediately on first failure with no retry. Confirm this is intentional.`});
+  } else {
+    items.push({ok:true, msg:`<strong>retry_count:</strong> ${retryCount} — ${retryCount} retries before invoking on_fail`});
+  }
+
+  // Warn if ERROR_POLICY.md is off but no on_fail is set — no fallback at all
+  const errPolicyOn = document.getElementById('ff-errpolicy')?.checked;
+  if (!errPolicyOn && !onFail) {
+    items.push({ok:false, warn:true, msg:`<strong>No fallback policy:</strong> ERROR_POLICY.md is off AND on_fail not set — skill has no error recovery. Enable ERROR_POLICY.md or set on_fail.`});
+  }
+
   const allOk = items.every(i => i.ok);
   const bodyHtml = items.map(i => `
     <div class="val-item ${i.ok ? 'val-ok' : i.warn ? 'val-warn' : 'val-err'}">
@@ -2101,6 +2215,26 @@ function downloadPackage() {
       `\nAll files loaded as on-demand RAG context — not injected into base prompt.`
     : '';
 
+  // ── Read on_fail configuration ────────────────────────────────────────────
+  const onFail       = document.getElementById('cfg-on-fail')?.value || '';
+  const onEmptyResult= document.getElementById('cfg-on-empty')?.value || '';
+  const onTimeout    = document.getElementById('cfg-on-timeout')?.value || '';
+  const retryCount   = document.getElementById('cfg-retry-count')?.value || '2';
+
+  // Build on_fail frontmatter block — only include fields that have values
+  const onFailBlock = [
+    onFail        ? `on_fail: ${onFail}` : '',
+    onEmptyResult ? `on_empty_result: ${onEmptyResult}` : '',
+    onTimeout     ? `on_timeout: ${onTimeout}` : '',
+    `retry_count: ${retryCount}`,
+  ].filter(Boolean).join('\n');
+
+  // Build on_fail constraint note for ## Constraints section
+  const onFailConstraint = onFail
+    ? `- on_fail: "${onFail}" overrides global ERROR_POLICY.md for this skill (skill-level precedence)\n` +
+      `- Precedence order: on_fail → ERROR_POLICY.md fallback_chain → circuit breaker`
+    : `- Fallback governed by global ERROR_POLICY.md (no skill-level override set)`;
+
   const SKILL_MD = `---
 name: ${name}
 version: 1.0.0
@@ -2114,6 +2248,7 @@ framework: ${framework}
 max_lines: 200
 generated: ${ts}
 reference_files: ${allRefFiles.length}
+${onFailBlock}
 ---
 
 # Overview
@@ -2131,6 +2266,17 @@ ${T.instructions.map((s,i) => `${i+1}. ${s}`).join('\n')}
 - Output format: JSON { result, confidence, sources, next_actions }
 - Before finishing, verify output meets all Working Agreements in AGENTS.md
 - Reference files (text, docs, code) are loaded on-demand via RAG — not upfront
+${onFailConstraint}
+
+## Error Handling (Inline)
+${onFail ? `on_fail:          ${onFail}` : '# on_fail not set — using ERROR_POLICY.md global policy'}
+${onEmptyResult ? `on_empty_result:  ${onEmptyResult}` : '# on_empty_result not set — same as on_fail'}
+${onTimeout     ? `on_timeout:       ${onTimeout}` : '# on_timeout not set — same as on_fail'}
+retry_count:      ${retryCount}
+
+Precedence rule: This skill's on_fail keys override ERROR_POLICY.md for this
+specific skill only. All other skills continue to use ERROR_POLICY.md defaults.
+A missing on_fail key means ERROR_POLICY.md governs this skill entirely.
 
 ## Output Format
 \`\`\`json
