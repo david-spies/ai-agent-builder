@@ -73,7 +73,7 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/your-org/ai-agent-builder.git"
+    "url": "https://github.com/david-spies/ai-agent-builder.git"
   },
   "engines": {
     "node": ">=18.0.0"
