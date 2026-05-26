@@ -546,3 +546,57 @@ The following additional event types are emitted by logic component execution:
 | `circuit_closed` | error-policy | INFO | Circuit breaker recovered — normal operation |
 | `fatal_error` | error-policy | CRITICAL | Unrecoverable failure — execution halted |
 | `partial_results_returned` | error-policy | WARN | Batch halted — partial results delivered |
+
+---
+
+## on_fail Inline Error Handling Events (Added in v1.2.0)
+
+When a skill has `on_fail` frontmatter keys, the following additional audit events
+are emitted to distinguish skill-level fallback from global ERROR_POLICY.md fallback.
+
+### Event Types
+
+| Event Type | Actor | Severity | Description |
+|---|---|---|---|
+| `skill_retry` | error-policy | INFO | Skill retried (within retry_count budget) |
+| `skill_on_fail_invoked` | error-policy | WARN | on_fail target invoked after retries exhausted |
+| `skill_on_empty_invoked` | error-policy | WARN | on_empty_result target invoked — zero results |
+| `skill_on_timeout_invoked` | error-policy | WARN | on_timeout target invoked — wall-clock exceeded |
+| `skill_fallback_resolved` | error-policy | INFO | Fallback skill completed successfully |
+| `skill_fallback_failed` | error-policy | ERROR | Fallback skill also failed — escalating |
+
+### Event Schema Extension
+
+```json
+{
+  "event_type": "skill_on_fail_invoked",
+  "actor": "error-policy",
+  "severity": "WARN",
+  "source_skill": "rag-retrieval.md",
+  "fallback_skill": "reasoning-only.md",
+  "fallback_type": "on_fail",
+  "precedence": "skill-level",
+  "error_type": "vector_db_timeout",
+  "retries_attempted": 3,
+  "retry_count_configured": 3,
+  "error_policy_overridden": true,
+  "audit_id": "uuid-v4"
+}
+```
+
+### Precedence Logging
+
+Every fallback event MUST include `precedence` and `error_policy_overridden` fields:
+
+```json
+{
+  "precedence": "skill-level",
+  "error_policy_overridden": true
+}
+```
+
+This allows compliance auditors to distinguish:
+- `skill-level` + `error_policy_overridden: true` → skill's own on_fail key was used
+- `global-policy` + `error_policy_overridden: false` → ERROR_POLICY.md governed the fallback
+
+Both are legitimate — this is informational, not an alert condition.
